@@ -74,10 +74,10 @@
         <button class="cancel" onclick="cancelStart()">取消 (Cancel)</button>
     </div>
 
-    <!-- Feed黑屏專屬錯誤 -->
+    <!-- Feed黑屏/綠點缺失專屬錯誤 -->
     <div id="feed-error">
-        <h2>鏡頭Feed未顯示</h2>
-        <p>綠點亮但黑屏？請檢查Safari設定 > 進階 > 實驗性功能 > 啟用「Motion & Orientation Access」與「WebRTC」。或切Chrome重試。</p>
+        <h2>鏡頭Feed未顯示（綠點缺失）</h2>
+        <p>權限已授權但無綠點/黑屏？1. 從右上角下滑檢查Control Center（綠點應顯示）。2. 設定 > Safari > 進階 > 實驗性功能 > 啟用「Motion & Orientation Access」與「WebRTC」。3. 強制重啟iPhone（按音量+、音量-、側邊）。4. 試Chrome。5. Privacy & Security > Camera > 允許Safari。</p>
         <button id="retry-feed">重試Feed</button>
         <button class="cancel" onclick="retryStart()">返回開始</button>
     </div>
@@ -132,7 +132,7 @@
         let arSystem, cameraStream;
         let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
         const isHTTPS = location.protocol === 'https:' || location.hostname === 'localhost';
-        console.log('Debug: Protocol = ' + location.protocol + ', Hostname = ' + location.hostname); // HTTPS debug
+        console.log('Debug: Protocol = ' + location.protocol + ', Hostname = ' + location.hostname + ', iOS: ' + isIOS); // 全面debug
 
         // DOM元素
         const startBtn = document.getElementById('start-ar');
@@ -149,30 +149,31 @@
         const retryBtn = document.getElementById('retry-permission');
         const retryFeedBtn = document.getElementById('retry-feed');
 
-        // 第一重：預請求相機（移除嚴格HTTPS拋錯，改warn）
+        // 第一重：預請求相機（權限成功後不觸發"檢查權限"錯誤）
         async function requestCameraStream() {
-            if (!isHTTPS) {
-                console.warn('非HTTPS環境，可能不穩定 - 建議GitHub Pages');
-                gtag('event', 'non_https_warn');
-            }
+            if (!isHTTPS) console.warn('非HTTPS，可能不穩定');
             try {
-                status.textContent = '請求後置相機權限... (Requesting rear camera...)';
+                status.textContent = '請求後置相機權限... (綠點應出現)';
                 cameraStream = await navigator.mediaDevices.getUserMedia({
                     video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
                 });
-                console.log('相機stream獲取成功');
-                gtag('event', 'camera_granted');
-                return cameraStream;
+                console.log('Stream狀態: ' + (cameraStream.active ? 'active' : 'inactive') + ', Tracks: ' + cameraStream.getVideoTracks().length);
+                if (cameraStream.active && cameraStream.getVideoTracks().length > 0) {
+                    gtag('event', 'camera_granted');
+                    return cameraStream;
+                } else {
+                    throw new Error('Stream不活躍，重試');
+                }
             } catch (err) {
                 console.error('相機錯誤:', err);
-                throw new Error('相機權限拒絕：' + err.message);
+                throw new Error('相機權限失敗：' + err.message + '。檢查Privacy > Camera > Safari。');
             }
         }
 
         // 手動iOS權限
         async function requestIOSPermissions() {
             if (!isIOS) return 'granted';
-            status.textContent = '請求運動與方向權限... (系統彈窗請點「允許」)';
+            status.textContent = '請求運動與方向權限...';
             await new Promise(resolve => setTimeout(resolve, 100));
 
             let motionGranted = 'granted';
@@ -185,15 +186,15 @@
             }
 
             if (motionGranted === 'granted' && orientationGranted === 'granted') {
-                status.textContent = '權限OK，啟動鏡頭...';
+                status.textContent = '權限OK，啟動鏡頭... (檢查綠點)';
                 gtag('event', 'orientation_granted');
                 return 'granted';
             } else {
-                throw new Error('運動/方向權限拒絕');
+                throw new Error('運動/方向權限拒絕。檢查Safari實驗功能。');
             }
         }
 
-        // 啟動AR（修復：'loadeddata'監聽 + 重試）
+        // 啟動AR（修復：'canplay'監聽 + Safari flags + 自動重試）
         async function startAR() {
             try {
                 const stream = await requestCameraStream();
@@ -206,46 +207,58 @@
                 arScene.addEventListener('loaded', () => {
                     arSystem = arScene.systems['mindar-image-system'];
 
-                    // 修復：注入 + 監聽video loadeddata（確認feed顯示）
-                    const injectVideo = () => {
+                    // 修復：注入 + 'canplay'監聽（iOS可靠）
+                    const injectVideo = (retryCount = 0) => {
                         if (arSystem && arSystem.video) {
                             arSystem.video.srcObject = stream;
                             arSystem.video.muted = true;
                             arSystem.video.playsInline = true;
-                            arSystem.video.play().catch(console.error);
-                            console.log('Stream注入video成功');
+                            if (isIOS) arSystem.video.webkitPlaysInline = true; // Safari專屬
+                            arSystem.video.play().catch(e => console.error('Play錯誤:', e));
 
-                            // 新增：監聽loadeddata，隱藏loading
-                            arSystem.video.addEventListener('loadeddata', () => {
-                                console.log('Video feed載入完成');
+                            console.log('Stream注入video，嘗試播放');
+
+                            // 監聽'canplay'（確認可播放/渲染）
+                            arSystem.video.addEventListener('canplay', () => {
+                                console.log('Video canplay - Feed準備好');
                                 loadingOverlay.style.display = 'none';
-                                status.textContent = 'AR啟動，掃描圖像... (Scan image to activate)';
+                                status.textContent = 'AR啟動，掃描圖像... (綠點應顯示)';
                                 gtag('event', 'feed_displayed');
                                 clearTimeout(startTimeout);
                             }, { once: true });
 
+                            // Fallback: 'loadedmetadata'若'canplay'延遲
+                            arSystem.video.addEventListener('loadedmetadata', () => {
+                                console.log('Video metadata載入');
+                            }, { once: true });
+
                             gtag('event', 'feed_injected');
+                        } else if (retryCount < 3) {
+                            console.warn('Video未找到，重試 ' + (retryCount + 1));
+                            setTimeout(() => injectVideo(retryCount + 1), 300);
                         } else {
-                            console.warn('arSystem.video未找到，延遲重試');
-                            setTimeout(injectVideo, 500);
+                            throw new Error('Video注入失敗');
                         }
                     };
                     injectVideo();
 
-                    // 事件監聽
+                    // 事件監聽（區分錯誤）
                     arScene.addEventListener('arError', (e) => {
                         console.error('AR錯誤:', e.detail);
+                        if (e.detail.includes('permission')) {
+                            permissionFailed.style.display = 'block'; // 僅權限錯誤用此
+                        } else {
+                            feedError.style.display = 'block'; // 其他用feed錯誤
+                        }
                         loadingOverlay.style.display = 'none';
-                        errorText.textContent = 'AR失敗：' + (e.detail || '重試') + '。';
-                        errorMsg.style.display = 'block';
-                        gtag('event', 'ar_error');
+                        gtag('event', 'ar_error', { type: 'permission_or_render' });
                         cleanupStream();
                     });
 
                     arScene.addEventListener('camera-error', (e) => {
                         console.error('Camera錯誤:', e.detail);
                         feedError.style.display = 'block';
-                        gtag('event', 'feed_failed');
+                        gtag('event', 'green_dot_missing');
                     });
 
                     arScene.addEventListener('arReady', () => {
@@ -255,14 +268,16 @@
                         gtag('event', 'ar_ready');
                     });
 
-                    // 超時：若無loadeddata，顯示feed錯誤
+                    // 超時：無canplay則重試stream
                     startTimeout = setTimeout(() => {
                         if (loadingOverlay.style.display !== 'none') {
-                            console.warn('Feed超時，顯示錯誤提示');
-                            loadingOverlay.style.display = 'none';
-                            feedError.style.display = 'block';
+                            console.warn('Feed超時，重新獲取stream');
+                            cleanupStream();
+                            requestCameraStream().then(newStream => {
+                                cameraStream = newStream;
+                                injectVideo();
+                            }).catch(() => feedError.style.display = 'block');
                             gtag('event', 'feed_timeout');
-                            arSystem?.stop();
                         }
                     }, 3000);
 
@@ -272,9 +287,14 @@
                 window.addEventListener('beforeunload', cleanupStream);
             } catch (err) {
                 console.error('啟動錯誤:', err);
+                // 區分：權限錯誤用permission，渲染用feed
+                if (err.message.includes('權限') || err.message.includes('permission')) {
+                    permissionFailed.style.display = 'block';
+                } else {
+                    feedError.style.display = 'block';
+                }
                 loadingOverlay.style.display = 'none';
-                errorText.textContent = err.message + '。請檢查權限。';
-                errorMsg.style.display = 'block';
+                errorText.textContent = err.message;
                 gtag('event', 'start_error', { error: err.message });
                 cleanupStream();
             }
