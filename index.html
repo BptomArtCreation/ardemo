@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <title>AR Overlay Demo</title>
   <style>
-    /* styles.css - 簡潔手機優先設計：現代扁平風格，深色主題，觸控優化 */
+    /* 原有樣式保持不變 */
     :root {
       --bg-primary: #13151a;
       --bg-secondary: #1e2127;
@@ -468,14 +468,22 @@
   <canvas id="proc-canvas" class="hidden"></canvas>
   <canvas id="capture-canvas" class="hidden"></canvas>
 
-  <!-- MindAR CDN 載入 (修復：使用 script 標籤 + 最新 v1.2.5) -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/aframe@1.5.0/dist/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar-js@1.2.5/dist/mindar-image.prod.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar-js@1.2.5/dist/mindar-image-three.prod.js"></script>
+  <!-- MindAR ESM 載入：使用 importmap -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+      "mindar-image-three": "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"
+    }
+  }
+  </script>
 
-  <script>
-    // app.js - 非模組版本，global MindARThree
+  <script type="module">
+    // app.js - ESM 版本
+    import * as THREE from 'three';
+    import { MindARThree } from 'mindar-image-three';
+
     class ARApp {
       constructor() {
         this.startScreen = document.getElementById('start-screen');
@@ -503,18 +511,20 @@
         this.btnSettings = document.getElementById('btn-settings');
         this.scanLine = document.getElementById('scan-line');
 
-        // 預設 tracker (base64 範例，替換為您的圖片 base64 或 'assets/tracker-image.jpg')
-        this.trackerImageUrl = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD... (下載 MindAR 範例圖片轉 base64)';
-        this.overlayImageSrc = this.overlayImage.src; // 已內嵌
+        // 預設 tracker (替換為實際 base64 或 URL)
+        this.trackerImageUrl = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD... (替換為您的 tracker 圖像 base64)';
+        this.overlayImageSrc = this.overlayImage.src;
         this.overlayVideoSrc = this.overlayVideo.querySelector('source').src;
 
         this.startMindAR = null;
         this.isVideoMode = false;
         this.isTorchOn = false;
+        this.scene = null;
+        this.renderer = null;
 
         // 雙重保險：載入後立即隱藏 + 超時
         this.hideLoading();
-        setTimeout(() => this.hideLoading(), 5000); // 5秒 fallback
+        setTimeout(() => this.hideLoading(), 5000);
 
         this.initEventListeners();
       }
@@ -626,30 +636,40 @@
       }
 
       async initMindAR() {
-        // 檢查 MindAR 是否載入 (修復：global)
-        if (typeof MINDARIMAGE === 'undefined' || !MINDARIMAGE.MindARThree) {
-          throw new Error('MindAR 庫載入失敗，請檢查網路/CDN');
-        }
-
-        const { container } = { container: document.getElementById('camera-container') };
-        const start = new MINDARIMAGE.MindARThree({
-          container: container,
+        // ESM 版本初始化
+        const start = new MindARThree({
+          container: document.getElementById('camera-container'),
           imageTargetSrc: this.trackerImageUrl,
           interpolationFactor: 0.075,
           maxTrackLost: 1,
-          uiLoading: false, // 停用內建 loading
+          uiLoading: false,
           uiScanning: '#status-tip',
           filterMinCF: 0.001,
           filterBeta: 0.01
         });
 
         const { renderer, scene, camera: arCamera } = start;
+        this.renderer = renderer;
+        this.scene = scene;
+
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
         this.arCanvas.width = window.innerWidth;
         this.arCanvas.height = window.innerHeight;
         renderer.domElement = this.arCanvas;
 
+        // 添加簡單的疊加物件到場景（例如一個立方體，替換為您的圖像/影片邏輯）
+        const anchor = start.addAnchor(0);
+        const group = new THREE.Group();
+        anchor.group.add(group);
+
+        // 示例：添加一個彩色立方體作為疊加（未來可替換為載入圖像/影片）
+        const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+        const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const cube = new THREE.Mesh(geometry, material);
+        group.add(cube);
+
+        // 事件處理
         start.addEventListener('targetFound', () => {
           this.overlayContainer.classList.remove('hidden');
           this.updateStatus('目標找到！');
@@ -669,7 +689,7 @@
         if (this.isVideoMode) {
           this.overlayImage.classList.add('hidden');
           this.overlayVideo.classList.remove('hidden');
-          this.overlayVideo.load(); // 重新載入以播放
+          this.overlayVideo.load();
           this.overlayVideo.play().catch(e => console.warn('影片播放警告:', e));
         } else {
           this.overlayVideo.classList.add('hidden');
@@ -708,6 +728,7 @@
         ctx.drawImage(this.camera, 0, 0);
 
         if (!this.overlayContainer.classList.contains('hidden')) {
+          // 對於 ESM，疊加現在在 Three.js 場景中；這裡簡化為圖像繪製
           const rect = this.overlayImage.getBoundingClientRect();
           ctx.drawImage(this.overlayImage, rect.left, rect.top, rect.width, rect.height);
         }
@@ -736,6 +757,9 @@
         if (this.startMindAR) {
           this.startMindAR.resize();
         }
+        if (this.renderer) {
+          this.renderer.setSize(window.innerWidth, window.innerHeight);
+        }
         if (this.arCanvas) {
           this.arCanvas.width = window.innerWidth;
           this.arCanvas.height = window.innerHeight;
@@ -746,7 +770,7 @@
     // 初始化
     window.addEventListener('load', () => {
       try {
-        window.arApp = new ARApp(); // global 存取 resize
+        window.arApp = new ARApp();
         window.addEventListener('resize', () => window.arApp?.handleResize());
       } catch (e) {
         console.error('App 初始化錯誤:', e);
