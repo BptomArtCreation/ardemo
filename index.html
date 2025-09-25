@@ -49,7 +49,7 @@
             cursor: pointer;
             transition: all 0.3s ease;
             backdrop-filter: blur(10px);
-            touch-action: manipulation; /* 改善移動端點擊 */
+            touch-action: manipulation; /* 改善iOS tap響應 */
         }
         button:hover:not(:disabled) {
             background: rgba(255,255,255,0.3);
@@ -73,7 +73,7 @@
             right: 20px;
             z-index: 50;
         }
-        #error-msg, #permission-dialog {
+        #error-msg, #permission-failed {
             position: fixed;
             top: 50%;
             left: 50%;
@@ -85,14 +85,17 @@
             text-align: center;
             z-index: 200;
             color: black;
+            max-width: 80%;
         }
-        #permission-dialog button {
+        #permission-failed button {
             margin: 10px;
             background: #4CAF50;
             color: white;
             border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
         }
-        #permission-dialog button.cancel {
+        #permission-failed button.cancel {
             background: #f44336;
         }
         #loading-overlay {
@@ -123,15 +126,15 @@
         <div id="status"></div>
     </div>
 
-    <!-- 自訂權限對話框（iOS fallback） -->
-    <div id="permission-dialog">
-        <h2>需要權限</h2>
-        <p>請允許「運動與方向」權限以啟用AR。系統會彈出提示，請點擊「允許」。</p>
-        <button id="allow-btn">允許並繼續</button>
-        <button class="cancel" onclick="cancelPermission()">取消</button>
+    <!-- 權限失敗自訂對話框（iOS fallback） -->
+    <div id="permission-failed">
+        <h2>權限請求失敗</h2>
+        <p>請在系統彈窗中點擊「允許」，或在裝置設定 > Safari > 運動與方向 > 允許本網站。若仍問題，請重試。</p>
+        <button id="retry-permission">重試</button>
+        <button class="cancel" onclick="cancelStart()">取消</button>
     </div>
 
-    <!-- 載入覆蓋層（延遲顯示） -->
+    <!-- 載入覆蓋層（延遲顯示，避免擋彈窗） -->
     <div id="loading-overlay">
         <p>初始化AR中... 請稍候</p>
     </div>
@@ -144,7 +147,7 @@
             color-space="sRGB" 
             renderer="colorManagement: true, physicallyCorrectLights" 
             vr-mode-ui="enabled: false" 
-            device-orientation-permission-ui="enabled: true"
+            <!-- 修改：禁用自動權限UI，避免bug與卡住 -->
             embedded>
             
             <!-- 資產載入 -->
@@ -193,14 +196,17 @@
         const errorText = document.getElementById('error-text');
         const status = document.getElementById('status');
         const loadingOverlay = document.getElementById('loading-overlay');
-        const permissionDialog = document.getElementById('permission-dialog');
-        const allowBtn = document.getElementById('allow-btn');
+        const permissionFailed = document.getElementById('permission-failed');
+        const retryBtn = document.getElementById('retry-permission');
 
-        // 手動請求iOS權限（用戶手勢觸發）
+        // 手動請求iOS權限（嚴格用戶手勢觸發）
         async function requestIOSPermissions() {
-            if (!isIOS) return Promise.resolve('granted'); // 非iOS直接通過
+            if (!isIOS) return Promise.resolve('granted'); // 非iOS跳過
 
-            status.textContent = '請求運動與方向權限...';
+            status.textContent = '請求運動與方向權限...（系統彈窗即將出現，請點「允許」）';
+
+            // 延遲100ms確保渲染
+            await new Promise(resolve => setTimeout(resolve, 100));
 
             // 運動權限
             let motionGranted = 'granted';
@@ -218,20 +224,24 @@
                 status.textContent = '權限已獲取，啟動AR...';
                 return 'granted';
             } else {
-                throw new Error('權限被拒絕');
+                throw new Error('權限被拒絕或未知錯誤');
             }
         }
 
         // 啟動AR邏輯
         async function startAR() {
             try {
-                // 第一步：手動請求權限（避免自動UI卡住）
+                // 第一步：手動請求權限
                 await requestIOSPermissions();
 
                 // 顯示AR容器，隱藏介紹
                 arContainer.style.display = 'block';
                 document.getElementById('intro').style.display = 'none';
-                loadingOverlay.style.display = 'flex'; // 現在才顯示loading
+
+                // 延遲顯示loading，避免初期擋彈窗（但權限已過）
+                setTimeout(() => {
+                    loadingOverlay.style.display = 'flex';
+                }, 500);
 
                 // 等待A-Frame載入
                 arScene.addEventListener('loaded', () => {
@@ -241,12 +251,12 @@
                     arScene.addEventListener('arError', (event) => {
                         console.error('AR錯誤:', event.detail);
                         loadingOverlay.style.display = 'none';
-                        errorText.textContent = 'AR啟動失敗：' + (event.detail || '請檢查權限') + '。若在Safari，試用Chrome。';
+                        errorText.textContent = 'AR啟動失敗：' + (event.detail || '請檢查權限與網路') + '。若在Safari，試用Chrome。';
                         errorMsg.style.display = 'block';
                         if (arSystem) arSystem.stop();
                     });
 
-                    // 第二重保險：就緒事件
+                    // 第二重保險：就緒事件 + 超時重試
                     arScene.addEventListener('arReady', () => {
                         console.log('AR就緒！');
                         loadingOverlay.style.display = 'none';
@@ -254,20 +264,22 @@
                         clearTimeout(startTimeout);
                     });
 
-                    // 超時檢查
                     startTimeout = setTimeout(() => {
                         if (loadingOverlay.style.display !== 'none') {
-                            arScene.emit('arError', { detail: '超時' });
+                            console.warn('AR超時，重試...');
+                            arSystem.stop();
+                            arSystem.start(); // 自動重試
                         }
-                    }, 10000);
+                    }, 5000); // 縮短至5秒
 
-                    // 啟動AR（現在權限已確保）
+                    // 啟動AR（MindAR自動處理相機）
                     arSystem.start();
                 });
             } catch (err) {
                 console.error('權限錯誤:', err);
-                errorText.textContent = '權限請求失敗：' + err.message + '。請在裝置設定中手動允許。';
-                errorMsg.style.display = 'block';
+                loadingOverlay.style.display = 'none';
+                permissionFailed.style.display = 'block';
+                retryBtn.focus(); // 確保可點
                 startBtn.disabled = false;
                 startBtn.textContent = '進入AR';
                 status.textContent = '';
@@ -276,22 +288,16 @@
 
         // 事件綁定：進入AR按鈕（用戶手勢）
         startBtn.addEventListener('click', (e) => {
-            e.preventDefault(); // 防止預設行為
+            e.preventDefault();
+            e.stopPropagation(); // 防止冒泡
             startBtn.disabled = true;
             startBtn.textContent = '請求權限中...';
-            if (isIOS) {
-                // iOS：顯示自訂提示，避免原生彈窗被擋
-                permissionDialog.style.display = 'block';
-                allowBtn.focus(); // 確保可點
-            } else {
-                startAR();
-            }
+            startAR();
         });
 
-        // 允許按鈕：繼續手動權限請求
-        allowBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            permissionDialog.style.display = 'none';
+        // 重試按鈕
+        retryBtn.addEventListener('click', () => {
+            permissionFailed.style.display = 'none';
             startAR();
         });
 
@@ -320,8 +326,8 @@
             startBtn.textContent = '進入AR';
             status.textContent = '';
         }
-        function cancelPermission() {
-            permissionDialog.style.display = 'none';
+        function cancelStart() {
+            permissionFailed.style.display = 'none';
             startBtn.disabled = false;
             startBtn.textContent = '進入AR';
             status.textContent = '';
