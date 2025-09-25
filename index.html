@@ -3,7 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AR 圖像追蹤體驗</title>
+    <title>ARScan Pro - 專業AR圖像追蹤</title>
+    <!-- Google Analytics Placeholder (商業分析) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'GA_MEASUREMENT_ID'); // 替換為您的GA ID
+    </script>
     <!-- A-Frame 核心庫 -->
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
     <!-- MindAR Image Tracking 庫 -->
@@ -11,132 +19,65 @@
     <!-- html2canvas 用於畫面捕捉 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
-        /* 現代美觀的響應式UI */
+        /* 商業級現代UI：漸變、暗黑支援、動畫 */
+        @media (prefers-color-scheme: dark) { body { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); } }
         body {
-            margin: 0;
-            padding: 0;
+            margin: 0; padding: 0;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            color: white;
-            overflow: hidden;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            height: 100vh; color: white; overflow: hidden;
+            transition: background 0.3s ease;
         }
-        #intro {
-            text-align: center;
-            z-index: 100;
-        }
-        #intro h1 {
-            font-size: 2em;
-            margin-bottom: 1em;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
-        #status {
-            font-size: 1em;
-            margin-top: 10px;
-            opacity: 0.8;
-        }
+        #logo { font-size: 1.5em; margin-bottom: 1em; } /* 品牌logo空間 */
+        #intro { text-align: center; z-index: 100; }
+        #intro h1 { font-size: 2em; margin-bottom: 1em; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        #status { font-size: 1em; margin-top: 10px; opacity: 0.8; }
         button {
-            background: rgba(255,255,255,0.2);
-            border: 2px solid rgba(255,255,255,0.5);
-            border-radius: 50px;
-            color: white;
-            font-size: 1.2em;
-            padding: 15px 30px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            backdrop-filter: blur(10px);
-            touch-action: manipulation; /* 改善iOS tap響應 */
+            background: rgba(255,255,255,0.2); border: 2px solid rgba(255,255,255,0.5);
+            border-radius: 50px; color: white; font-size: 1.2em; padding: 15px 30px;
+            cursor: pointer; transition: all 0.3s ease; backdrop-filter: blur(10px);
+            touch-action: manipulation;
         }
-        button:hover:not(:disabled) {
-            background: rgba(255,255,255,0.3);
-            transform: scale(1.05);
-        }
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        #ar-container {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-        }
-        #save-btn {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 50;
-        }
-        #error-msg, #permission-failed {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(255,255,255,0.9);
-            padding: 20px;
-            border-radius: 10px;
-            display: none;
-            text-align: center;
-            z-index: 200;
-            color: black;
-            max-width: 80%;
-        }
-        #permission-failed button {
-            margin: 10px;
-            background: #4CAF50;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-        }
-        #permission-failed button.cancel {
-            background: #f44336;
-        }
-        #loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 100;
-            flex-direction: column;
-        }
-        @media (max-width: 480px) {
-            #intro h1 { font-size: 1.5em; }
-            button { font-size: 1em; padding: 12px 24px; }
-        }
+        button:hover:not(:disabled) { background: rgba(255,255,255,0.3); transform: scale(1.05); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #ar-container { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
+        #save-btn, #share-btn { position: fixed; top: 20px; z-index: 50; right: 20px; }
+        #share-btn { top: 80px; background: #4CAF50; } /* 分享按鈕 */
+        #error-msg, #permission-failed { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(255,255,255,0.9); padding: 20px; border-radius: 10px; display: none;
+            text-align: center; z-index: 200; color: black; max-width: 80%; }
+        #permission-failed button { margin: 10px; background: #4CAF50; color: white; border: none; padding: 10px 20px; border-radius: 5px; }
+        #permission-failed button.cancel { background: #f44336; }
+        #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);
+            display: none; justify-content: center; align-items: center; z-index: 100; flex-direction: column; }
+        .spinner { border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @media (max-width: 480px) { #intro h1 { font-size: 1.5em; } button { font-size: 1em; padding: 12px 24px; } }
     </style>
 </head>
 <body>
-    <!-- 介紹頁面 -->
+    <!-- 品牌介紹 -->
+    <div id="logo">ARScan Pro</div> <!-- 您的品牌logo -->
     <div id="intro">
-        <h1>歡迎進入AR世界</h1>
-        <p>點擊下方按鈕啟動後置相機，掃描特定圖像開始體驗</p>
-        <button id="start-ar">進入AR</button>
+        <h1>歡迎使用ARScan Pro</h1>
+        <p>專業AR圖像追蹤：掃描指定圖像，解鎖互動體驗</p>
+        <button id="start-ar">進入AR (Enter AR)</button>
         <div id="status"></div>
     </div>
 
-    <!-- 權限失敗自訂對話框（iOS fallback） -->
+    <!-- 權限失敗對話框 -->
     <div id="permission-failed">
         <h2>權限請求失敗</h2>
-        <p>請在系統彈窗中點擊「允許」，或在裝置設定 > Safari > 運動與方向 > 允許本網站。若仍問題，請重試。</p>
-        <button id="retry-permission">重試</button>
-        <button class="cancel" onclick="cancelStart()">取消</button>
+        <p>請點擊「允許」系統彈窗，或去設定 > Safari > 運動與方向 > 允許本網站。若仍卡住，重啟瀏覽器或切Chrome。</p>
+        <button id="retry-permission">重試 (Retry)</button>
+        <button class="cancel" onclick="cancelStart()">取消 (Cancel)</button>
     </div>
 
-    <!-- 載入覆蓋層（延遲顯示，避免擋彈窗） -->
+    <!-- 載入覆蓋層 -->
     <div id="loading-overlay">
-        <p>初始化AR中... 請稍候</p>
+        <div class="spinner"></div>
+        <p>初始化AR中... (Initializing...)</p>
     </div>
 
     <!-- AR 容器 -->
@@ -147,19 +88,16 @@
             color-space="sRGB" 
             renderer="colorManagement: true, physicallyCorrectLights" 
             vr-mode-ui="enabled: false" 
-            <!-- 修改：禁用自動權限UI，避免bug與卡住 -->
-            embedded>
+            embedded> <!-- 禁用自動權限UI -->
             
-            <!-- 資產載入 -->
             <a-assets>
                 <img id="card-img" src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/image-tracking/assets/card-example/card.png" />
                 <a-asset-item id="avatar-model" src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/image-tracking/assets/card-example/softmind/scene.gltf"></a-asset-item>
+                <!-- 未來：添加影片 <video id="ar-video" src="your-video.mp4" loop autoplay muted></video> -->
             </a-assets>
 
-            <!-- 相機設定 -->
             <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-            <!-- 圖像目標實體 -->
             <a-entity mindar-image-target="targetIndex: 0">
                 <a-plane src="#card-img" position="0 0 0" height="0.552" width="1" rotation="0 0 0"></a-plane>
                 <a-gltf-model 
@@ -169,29 +107,32 @@
                     src="#avatar-model"
                     animation="property: position; to: 0 0.1 0.1; dur: 1000; easing: easeInOutQuad; loop: true; dir: alternate">
                 </a-gltf-model>
+                <!-- 商業擴展：更多AR內容 -->
             </a-entity>
         </a-scene>
-        <button id="save-btn">儲存畫面</button>
+        <button id="save-btn">儲存畫面 (Save)</button>
+        <button id="share-btn">分享 (Share)</button>
     </div>
 
-    <!-- 錯誤訊息顯示 -->
+    <!-- 錯誤訊息 -->
     <div id="error-msg">
-        <h2>發生錯誤</h2>
-        <p id="error-text">請檢查權限並重試。</p>
-        <button onclick="closeError()">關閉</button>
+        <h2>發生錯誤 (Error)</h2>
+        <p id="error-text">請檢查權限並重試 (Check permissions and retry)。</p>
+        <button onclick="closeError()">關閉 (Close)</button>
     </div>
 
     <script>
-        // 全局變數
-        let arSystem;
-        let startTimeout;
-        let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream; // 偵測iOS
+        // 商業版全局變數
+        let arSystem, cameraStream; // 相機stream注入
+        let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        const isHTTPS = location.protocol === 'https:' || location.hostname === 'localhost';
 
         // DOM元素
         const startBtn = document.getElementById('start-ar');
         const arContainer = document.getElementById('ar-container');
         const arScene = document.getElementById('ar-scene');
         const saveBtn = document.getElementById('save-btn');
+        const shareBtn = document.getElementById('share-btn');
         const errorMsg = document.getElementById('error-msg');
         const errorText = document.getElementById('error-text');
         const status = document.getElementById('status');
@@ -199,139 +140,155 @@
         const permissionFailed = document.getElementById('permission-failed');
         const retryBtn = document.getElementById('retry-permission');
 
-        // 手動請求iOS權限（嚴格用戶手勢觸發）
+        // 第一重保險：預請求後置相機權限並注入stream
+        async function requestCameraStream() {
+            if (!isHTTPS) throw new Error('需HTTPS環境');
+            try {
+                status.textContent = '請求後置相機權限... (Requesting rear camera...)';
+                cameraStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+                });
+                console.log('相機stream獲取成功'); // 商業日誌
+                gtag('event', 'camera_granted'); // 分析事件
+                return cameraStream;
+            } catch (err) {
+                console.error('相機錯誤:', err);
+                throw new Error('相機權限拒絕：' + err.message);
+            }
+        }
+
+        // 手動iOS運動/方向權限
         async function requestIOSPermissions() {
-            if (!isIOS) return Promise.resolve('granted'); // 非iOS跳過
+            if (!isIOS) return 'granted';
+            status.textContent = '請求運動與方向權限... (系統彈窗請點「允許」)';
+            await new Promise(resolve => setTimeout(resolve, 100)); // 渲染延遲
 
-            status.textContent = '請求運動與方向權限...（系統彈窗即將出現，請點「允許」）';
-
-            // 延遲100ms確保渲染
-            await new Promise(resolve => setTimeout(resolve, 100));
-
-            // 運動權限
             let motionGranted = 'granted';
             if (typeof DeviceMotionEvent.requestPermission === 'function') {
                 motionGranted = await DeviceMotionEvent.requestPermission();
             }
-
-            // 方向權限
             let orientationGranted = 'granted';
             if (typeof DeviceOrientationEvent.requestPermission === 'function') {
                 orientationGranted = await DeviceOrientationEvent.requestPermission();
             }
 
             if (motionGranted === 'granted' && orientationGranted === 'granted') {
-                status.textContent = '權限已獲取，啟動AR...';
+                status.textContent = '權限OK，啟動鏡頭...';
+                gtag('event', 'orientation_granted');
                 return 'granted';
             } else {
-                throw new Error('權限被拒絕或未知錯誤');
+                throw new Error('運動/方向權限拒絕');
             }
         }
 
-        // 啟動AR邏輯
+        // 啟動AR（商業邏輯）
         async function startAR() {
             try {
-                // 第一步：手動請求權限
+                // 步驟1: 相機stream
+                const stream = await requestCameraStream();
+                // 步驟2: iOS權限
                 await requestIOSPermissions();
 
-                // 顯示AR容器，隱藏介紹
+                // 顯示AR，隱藏介紹
                 arContainer.style.display = 'block';
                 document.getElementById('intro').style.display = 'none';
+                setTimeout(() => loadingOverlay.style.display = 'flex', 200);
 
-                // 延遲顯示loading，避免初期擋彈窗（但權限已過）
-                setTimeout(() => {
-                    loadingOverlay.style.display = 'flex';
-                }, 500);
-
-                // 等待A-Frame載入
+                // A-Frame載入
                 arScene.addEventListener('loaded', () => {
                     arSystem = arScene.systems['mindar-image-system'];
+                    // 注入stream到MindAR（確保即時顯示）
+                    if (arSystem && stream) {
+                        arSystem.renderer.domElement.srcObject = stream; // 手動注入video feed
+                    }
 
-                    // 第一重保險：錯誤事件
-                    arScene.addEventListener('arError', (event) => {
-                        console.error('AR錯誤:', event.detail);
+                    // 第二重保險：事件監聽
+                    arScene.addEventListener('arError', (e) => {
+                        console.error('AR錯誤:', e.detail);
                         loadingOverlay.style.display = 'none';
-                        errorText.textContent = 'AR啟動失敗：' + (event.detail || '請檢查權限與網路') + '。若在Safari，試用Chrome。';
+                        errorText.textContent = 'AR失敗：' + (e.detail || '重試或切Chrome') + '。日誌已記錄。';
                         errorMsg.style.display = 'block';
+                        gtag('event', 'ar_error', { error: e.detail });
                         if (arSystem) arSystem.stop();
+                        if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
                     });
 
-                    // 第二重保險：就緒事件 + 超時重試
                     arScene.addEventListener('arReady', () => {
-                        console.log('AR就緒！');
+                        console.log('AR就緒！鏡頭feed顯示');
                         loadingOverlay.style.display = 'none';
-                        status.textContent = 'AR已啟動，掃描圖像...';
+                        status.textContent = 'AR啟動，掃描圖像... (Scan image to activate)';
+                        gtag('event', 'ar_ready');
                         clearTimeout(startTimeout);
                     });
 
+                    // 超時重試（3秒）
                     startTimeout = setTimeout(() => {
                         if (loadingOverlay.style.display !== 'none') {
-                            console.warn('AR超時，重試...');
-                            arSystem.stop();
-                            arSystem.start(); // 自動重試
+                            console.warn('超時，重試AR...');
+                            arSystem.start();
                         }
-                    }, 5000); // 縮短至5秒
+                    }, 3000);
 
-                    // 啟動AR（MindAR自動處理相機）
-                    arSystem.start();
+                    arSystem.start(); // 啟動，stream已注入
+                });
+
+                // 清理：頁面卸載停止stream
+                window.addEventListener('beforeunload', () => {
+                    if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
                 });
             } catch (err) {
-                console.error('權限錯誤:', err);
+                console.error('啟動錯誤:', err);
                 loadingOverlay.style.display = 'none';
-                permissionFailed.style.display = 'block';
-                retryBtn.focus(); // 確保可點
-                startBtn.disabled = false;
-                startBtn.textContent = '進入AR';
-                status.textContent = '';
+                errorText.textContent = err.message + '。請檢查HTTPS與權限。';
+                errorMsg.style.display = 'block';
+                gtag('event', 'start_error', { error: err.message });
+                if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
             }
         }
 
-        // 事件綁定：進入AR按鈕（用戶手勢）
+        // 事件：進入AR
         startBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation(); // 防止冒泡
+            e.preventDefault(); e.stopPropagation();
             startBtn.disabled = true;
-            startBtn.textContent = '請求權限中...';
+            startBtn.textContent = '啟動中... (Starting...)';
             startAR();
         });
 
-        // 重試按鈕
+        // 重試
         retryBtn.addEventListener('click', () => {
             permissionFailed.style.display = 'none';
+            if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
             startAR();
         });
 
-        // 儲存功能（不變）
+        // 儲存畫面
         saveBtn.addEventListener('click', () => {
-            const canvas = arScene.canvas;
-            html2canvas(canvas, {
-                scale: 1,
-                useCORS: true,
-                backgroundColor: null
-            }).then(capturedCanvas => {
-                const link = document.createElement('a');
-                link.download = 'AR截圖.png';
-                link.href = capturedCanvas.toDataURL('image/png');
-                link.click();
-            }).catch(err => {
-                console.error('截圖錯誤:', err);
-                alert('截圖失敗，請重試。');
-            });
+            html2canvas(arScene.canvas, { scale: 1, useCORS: true, backgroundColor: null })
+                .then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = 'ARScan-Pro.png';
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                    gtag('event', 'save_screenshot');
+                }).catch(err => {
+                    console.error('儲存錯誤:', err);
+                    alert('儲存失敗，重試。');
+                });
         });
 
-        // 輔助函數
-        function closeError() {
-            errorMsg.style.display = 'none';
-            startBtn.disabled = false;
-            startBtn.textContent = '進入AR';
-            status.textContent = '';
-        }
-        function cancelStart() {
-            permissionFailed.style.display = 'none';
-            startBtn.disabled = false;
-            startBtn.textContent = '進入AR';
-            status.textContent = '';
-        }
+        // 分享（商業功能）
+        shareBtn.addEventListener('click', async () => {
+            if (navigator.share) {
+                await navigator.share({ title: 'ARScan Pro', url: location.href });
+                gtag('event', 'share');
+            } else {
+                alert('分享連結：' + location.href);
+            }
+        });
+
+        // 輔助
+        function closeError() { errorMsg.style.display = 'none'; startBtn.disabled = false; startBtn.textContent = '進入AR (Enter AR)'; status.textContent = ''; }
+        function cancelStart() { permissionFailed.style.display = 'none'; startBtn.disabled = false; startBtn.textContent = '進入AR (Enter AR)'; status.textContent = ''; if (cameraStream) cameraStream.getTracks().forEach(t => t.stop()); }
     </script>
 </body>
 </html>
