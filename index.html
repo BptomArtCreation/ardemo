@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AR 圖像追蹤體驗</title>
-    <!-- A-Frame 核心庫（官方推薦1.6.0） -->
+    <!-- A-Frame 核心庫 -->
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
     <!-- MindAR Image Tracking 庫 -->
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
@@ -49,6 +49,7 @@
             cursor: pointer;
             transition: all 0.3s ease;
             backdrop-filter: blur(10px);
+            touch-action: manipulation; /* 改善移動端點擊 */
         }
         button:hover:not(:disabled) {
             background: rgba(255,255,255,0.3);
@@ -59,7 +60,7 @@
             cursor: not-allowed;
         }
         #ar-container {
-            display: none; /* 初始隱藏AR */
+            display: none;
             position: fixed;
             top: 0;
             left: 0;
@@ -72,17 +73,27 @@
             right: 20px;
             z-index: 50;
         }
-        #error-msg {
+        #error-msg, #permission-dialog {
             position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(255,0,0,0.8);
+            background: rgba(255,255,255,0.9);
             padding: 20px;
             border-radius: 10px;
             display: none;
             text-align: center;
             z-index: 200;
+            color: black;
+        }
+        #permission-dialog button {
+            margin: 10px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+        }
+        #permission-dialog button.cancel {
+            background: #f44336;
         }
         #loading-overlay {
             position: fixed;
@@ -112,7 +123,15 @@
         <div id="status"></div>
     </div>
 
-    <!-- 載入覆蓋層 -->
+    <!-- 自訂權限對話框（iOS fallback） -->
+    <div id="permission-dialog">
+        <h2>需要權限</h2>
+        <p>請允許「運動與方向」權限以啟用AR。系統會彈出提示，請點擊「允許」。</p>
+        <button id="allow-btn">允許並繼續</button>
+        <button class="cancel" onclick="cancelPermission()">取消</button>
+    </div>
+
+    <!-- 載入覆蓋層（延遲顯示） -->
     <div id="loading-overlay">
         <p>初始化AR中... 請稍候</p>
     </div>
@@ -125,7 +144,7 @@
             color-space="sRGB" 
             renderer="colorManagement: true, physicallyCorrectLights" 
             vr-mode-ui="enabled: false" 
-            device-orientation-permission-ui="enabled: true"  <!-- 修改：啟用iOS motion權限提示 -->
+            device-orientation-permission-ui="enabled: true"
             embedded>
             
             <!-- 資產載入 -->
@@ -137,11 +156,9 @@
             <!-- 相機設定 -->
             <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-            <!-- 圖像目標實體：檢測到特定圖像時顯示內容 -->
+            <!-- 圖像目標實體 -->
             <a-entity mindar-image-target="targetIndex: 0">
-                <!-- 預設圖像疊加 -->
                 <a-plane src="#card-img" position="0 0 0" height="0.552" width="1" rotation="0 0 0"></a-plane>
-                <!-- 3D模型：為未來替換留空間，可修改src或添加動畫 -->
                 <a-gltf-model 
                     rotation="0 0 0" 
                     position="0 0 0.1" 
@@ -149,24 +166,23 @@
                     src="#avatar-model"
                     animation="property: position; to: 0 0.1 0.1; dur: 1000; easing: easeInOutQuad; loop: true; dir: alternate">
                 </a-gltf-model>
-                <!-- 未來3D空間：可在此添加更多<a-entity> -->
             </a-entity>
         </a-scene>
-        <!-- 儲存按鈕 -->
         <button id="save-btn">儲存畫面</button>
     </div>
 
     <!-- 錯誤訊息顯示 -->
     <div id="error-msg">
         <h2>發生錯誤</h2>
-        <p id="error-text">請檢查相機與運動權限，並重試。</p>
+        <p id="error-text">請檢查權限並重試。</p>
         <button onclick="closeError()">關閉</button>
     </div>
 
     <script>
         // 全局變數
-        let arSystem; // MindAR系統實例
-        let startTimeout; // 超時重試
+        let arSystem;
+        let startTimeout;
+        let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream; // 偵測iOS
 
         // DOM元素
         const startBtn = document.getElementById('start-ar');
@@ -177,58 +193,109 @@
         const errorText = document.getElementById('error-text');
         const status = document.getElementById('status');
         const loadingOverlay = document.getElementById('loading-overlay');
+        const permissionDialog = document.getElementById('permission-dialog');
+        const allowBtn = document.getElementById('allow-btn');
 
-        // 修改：移除預請求權限，讓MindAR統一處理（避免衝突）
+        // 手動請求iOS權限（用戶手勢觸發）
+        async function requestIOSPermissions() {
+            if (!isIOS) return Promise.resolve('granted'); // 非iOS直接通過
 
-        // 啟動AR邏輯
-        function startAR() {
-            // 顯示AR容器，隱藏介紹
-            arContainer.style.display = 'block';
-            document.getElementById('intro').style.display = 'none';
-            loadingOverlay.style.display = 'flex'; // 顯示載入
+            status.textContent = '請求運動與方向權限...';
 
-            // 等待A-Frame載入
-            arScene.addEventListener('loaded', () => {
-                arSystem = arScene.systems['mindar-image-system'];
+            // 運動權限
+            let motionGranted = 'granted';
+            if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                motionGranted = await DeviceMotionEvent.requestPermission();
+            }
 
-                // 第一重保險：錯誤事件處理（捕捉權限/初始化失敗）
-                arScene.addEventListener('arError', (event) => {
-                    console.error('AR錯誤:', event.detail);
-                    loadingOverlay.style.display = 'none';
-                    errorText.textContent = 'AR啟動失敗：' + (event.detail || '請檢查權限與網路') + '。請重試或檢查console錯誤。';
-                    errorMsg.style.display = 'block';
-                    if (arSystem) arSystem.stop();
-                });
+            // 方向權限
+            let orientationGranted = 'granted';
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                orientationGranted = await DeviceOrientationEvent.requestPermission();
+            }
 
-                // 第二重保險：準備就緒事件，確認啟動成功
-                arScene.addEventListener('arReady', () => {
-                    console.log('AR就緒！');
-                    loadingOverlay.style.display = 'none';
-                    status.textContent = 'AR已啟動，掃描圖像...'; // 更新狀態
-                    clearTimeout(startTimeout); // 取消超時
-                });
-
-                // 超時檢查（10秒內未ready則錯誤）
-                startTimeout = setTimeout(() => {
-                    if (loadingOverlay.style.display !== 'none') {
-                        arScene.emit('arError', { detail: '超時' });
-                    }
-                }, 10000);
-
-                // 啟動AR（MindAR自動請求相機+運動權限）
-                arSystem.start();
-            });
+            if (motionGranted === 'granted' && orientationGranted === 'granted') {
+                status.textContent = '權限已獲取，啟動AR...';
+                return 'granted';
+            } else {
+                throw new Error('權限被拒絕');
+            }
         }
 
-        // 事件綁定：進入AR按鈕
-        startBtn.addEventListener('click', () => {
+        // 啟動AR邏輯
+        async function startAR() {
+            try {
+                // 第一步：手動請求權限（避免自動UI卡住）
+                await requestIOSPermissions();
+
+                // 顯示AR容器，隱藏介紹
+                arContainer.style.display = 'block';
+                document.getElementById('intro').style.display = 'none';
+                loadingOverlay.style.display = 'flex'; // 現在才顯示loading
+
+                // 等待A-Frame載入
+                arScene.addEventListener('loaded', () => {
+                    arSystem = arScene.systems['mindar-image-system'];
+
+                    // 第一重保險：錯誤事件
+                    arScene.addEventListener('arError', (event) => {
+                        console.error('AR錯誤:', event.detail);
+                        loadingOverlay.style.display = 'none';
+                        errorText.textContent = 'AR啟動失敗：' + (event.detail || '請檢查權限') + '。若在Safari，試用Chrome。';
+                        errorMsg.style.display = 'block';
+                        if (arSystem) arSystem.stop();
+                    });
+
+                    // 第二重保險：就緒事件
+                    arScene.addEventListener('arReady', () => {
+                        console.log('AR就緒！');
+                        loadingOverlay.style.display = 'none';
+                        status.textContent = 'AR已啟動，掃描圖像...';
+                        clearTimeout(startTimeout);
+                    });
+
+                    // 超時檢查
+                    startTimeout = setTimeout(() => {
+                        if (loadingOverlay.style.display !== 'none') {
+                            arScene.emit('arError', { detail: '超時' });
+                        }
+                    }, 10000);
+
+                    // 啟動AR（現在權限已確保）
+                    arSystem.start();
+                });
+            } catch (err) {
+                console.error('權限錯誤:', err);
+                errorText.textContent = '權限請求失敗：' + err.message + '。請在裝置設定中手動允許。';
+                errorMsg.style.display = 'block';
+                startBtn.disabled = false;
+                startBtn.textContent = '進入AR';
+                status.textContent = '';
+            }
+        }
+
+        // 事件綁定：進入AR按鈕（用戶手勢）
+        startBtn.addEventListener('click', (e) => {
+            e.preventDefault(); // 防止預設行為
             startBtn.disabled = true;
-            startBtn.textContent = '啟動中...';
-            status.textContent = '請求權限中...';
+            startBtn.textContent = '請求權限中...';
+            if (isIOS) {
+                // iOS：顯示自訂提示，避免原生彈窗被擋
+                permissionDialog.style.display = 'block';
+                allowBtn.focus(); // 確保可點
+            } else {
+                startAR();
+            }
+        });
+
+        // 允許按鈕：繼續手動權限請求
+        allowBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            permissionDialog.style.display = 'none';
             startAR();
         });
 
-        // 儲存畫面功能（不變）
+        // 儲存功能（不變）
         saveBtn.addEventListener('click', () => {
             const canvas = arScene.canvas;
             html2canvas(canvas, {
@@ -246,9 +313,15 @@
             });
         });
 
-        // 關閉錯誤
+        // 輔助函數
         function closeError() {
             errorMsg.style.display = 'none';
+            startBtn.disabled = false;
+            startBtn.textContent = '進入AR';
+            status.textContent = '';
+        }
+        function cancelPermission() {
+            permissionDialog.style.display = 'none';
             startBtn.disabled = false;
             startBtn.textContent = '進入AR';
             status.textContent = '';
