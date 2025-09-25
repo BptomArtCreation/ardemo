@@ -1,767 +1,365 @@
-<!doctype html>
-<html lang="zh-Hant">
+<!DOCTYPE html>
+<html lang="zh-TW">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#13151a" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <link rel="manifest" href="manifest.webmanifest" />
-  <title>AR Overlay Demo</title>
-  <style>
-    /* styles.css - 簡潔手機優先設計：現代扁平風格，深色主題，觸控優化 */
-    :root {
-      --bg-primary: #13151a;
-      --bg-secondary: #1e2127;
-      --accent: #00d4ff;
-      --text-primary: #ffffff;
-      --text-secondary: #a0a0a0;
-      --border: rgba(255, 255, 255, 0.1);
-      --shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-      --radius: 12px;
-      --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg-primary);
-      color: var(--text-primary);
-      overflow: hidden;
-      touch-action: manipulation;
-      -webkit-user-select: none;
-      user-select: none;
-    }
-
-    #app {
-      position: relative;
-      width: 100vw;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .screen {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      background: linear-gradient(135deg, var(--bg-primary), var(--bg-secondary));
-      z-index: 10;
-      transition: var(--transition);
-    }
-
-    .screen.hidden {
-      opacity: 0;
-      visibility: hidden;
-    }
-
-    .branding {
-      text-align: center;
-      margin-bottom: 2rem;
-      padding: 0 1rem;
-    }
-
-    .branding h1 {
-      font-size: clamp(1.5rem, 5vw, 2.5rem);
-      font-weight: 700;
-      margin-bottom: 0.5rem;
-      background: linear-gradient(135deg, var(--accent), #00aaff);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .branding p {
-      font-size: 1rem;
-      color: var(--text-secondary);
-      line-height: 1.4;
-    }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      padding: 1rem 2rem;
-      border: none;
-      border-radius: var(--radius);
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: var(--transition);
-      min-height: 3rem;
-      touch-action: manipulation;
-    }
-
-    .btn-primary {
-      background: linear-gradient(135deg, var(--accent), #00aaff);
-      color: white;
-      box-shadow: var(--shadow);
-    }
-
-    .btn-primary:hover,
-    .btn-primary:active {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 25px rgba(0, 212, 255, 0.4);
-    }
-
-    .btn-outline {
-      background: transparent;
-      color: var(--accent);
-      border: 2px solid var(--accent);
-    }
-
-    .btn-outline:hover {
-      background: var(--accent);
-      color: white;
-    }
-
-    .btn.icon-only {
-      padding: 0.75rem;
-      min-width: 3rem;
-      min-height: 3rem;
-    }
-
-    .big {
-      font-size: 1.2rem;
-      padding: 1.25rem 3rem;
-    }
-
-    .tip {
-      margin-top: 1rem;
-      font-size: 0.875rem;
-      color: var(--text-secondary);
-      text-align: center;
-      padding: 0 1rem;
-    }
-
-    #camera-screen {
-      background: black;
-      justify-content: flex-start;
-    }
-
-    #camera-container {
-      position: relative;
-      flex: 1;
-      width: 100%;
-      height: 100vh;
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    #camera {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      transform: scaleX(-1); /* 鏡像翻轉以匹配 AR 慣例 */
-    }
-
-    #overlay-container {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-    }
-
-    #overlay-image,
-    #overlay-video {
-      position: absolute;
-      max-width: 100%;
-      max-height: 100%;
-      object-fit: contain;
-      pointer-events: auto;
-    }
-
-    #overlay-video.hidden,
-    #overlay-image.hidden {
-      display: none;
-    }
-
-    #scan-line {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, var(--accent), transparent);
-      animation: scan 2s linear infinite;
-      opacity: 0.5;
-    }
-
-    @keyframes scan {
-      0% { top: 0; opacity: 0; }
-      10% { opacity: 1; }
-      90% { opacity: 1; }
-      100% { top: 100%; opacity: 0; }
-    }
-
-    .topbar {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      display: flex;
-      align-items: center;
-      padding: 1rem;
-      background: rgba(0, 0, 0, 0.5);
-      backdrop-filter: blur(10px);
-      z-index: 20;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .spacer {
-      flex: 1;
-    }
-
-    .bottombar {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      padding: 1rem;
-      background: rgba(0, 0, 0, 0.5);
-      backdrop-filter: blur(10px);
-      z-index: 20;
-      border-top: 1px solid var(--border);
-    }
-
-    .bar {
-      display: flex;
-      gap: 1rem;
-      justify-content: center;
-      align-items: center;
-    }
-
-    .status-tip {
-      position: absolute;
-      bottom: 5rem;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.75rem 1.5rem;
-      background: rgba(0, 0, 0, 0.7);
-      border-radius: var(--radius);
-      font-size: 0.875rem;
-      color: var(--text-secondary);
-      z-index: 15;
-    }
-
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--accent);
-      animation: pulse 1.5s infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
-
-    .hidden {
-      display: none !important;
-    }
-
-    canvas.hidden {
-      position: absolute;
-      top: -9999px;
-      left: -9999px;
-    }
-
-    /* 權限對話框樣式 */
-    #permission-dialog {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.8);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 100;
-    }
-
-    #permission-dialog.hidden {
-      display: none;
-    }
-
-    .dialog-content {
-      background: var(--bg-secondary);
-      padding: 2rem;
-      border-radius: var(--radius);
-      text-align: center;
-      max-width: 90%;
-      box-shadow: var(--shadow);
-    }
-
-    .dialog-content h2 {
-      margin-bottom: 1rem;
-      color: var(--accent);
-    }
-
-    .dialog-content p {
-      margin-bottom: 1.5rem;
-      color: var(--text-secondary);
-      line-height: 1.4;
-    }
-
-    /* 媒體查詢：確保手機優先 */
-    @media (max-width: 480px) {
-      .bar {
-        flex-direction: column;
-        gap: 0.75rem;
-      }
-
-      .btn {
-        width: 100%;
-        justify-content: center;
-      }
-    }
-
-    /* 載入指示器 */
-    #loading {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: var(--bg-primary);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 50;
-    }
-
-    .spinner {
-      width: 40px;
-      height: 40px;
-      border: 4px solid var(--border);
-      border-top: 4px solid var(--accent);
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-
-    /* 錯誤提示 */
-    #error-tip {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(255, 0, 0, 0.9);
-      color: white;
-      padding: 1rem;
-      border-radius: var(--radius);
-      text-align: center;
-      z-index: 100;
-      max-width: 90%;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARScan Pro - 專業AR圖像追蹤</title>
+    <!-- Google Analytics Placeholder -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'GA_MEASUREMENT_ID'); // 替換為您的GA ID
+    </script>
+    <!-- A-Frame 核心庫 -->
+    <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+    <!-- MindAR Image Tracking 庫 -->
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+    <!-- html2canvas 用於畫面捕捉 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        /* 商業級現代UI */
+        @media (prefers-color-scheme: dark) { body { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); } }
+        body {
+            margin: 0; padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            height: 100vh; color: white; overflow: hidden;
+            transition: background 0.3s ease;
+        }
+        #logo { font-size: 1.5em; margin-bottom: 1em; }
+        #intro { text-align: center; z-index: 100; }
+        #intro h1 { font-size: 2em; margin-bottom: 1em; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        #status { font-size: 1em; margin-top: 10px; opacity: 0.8; }
+        button {
+            background: rgba(255,255,255,0.2); border: 2px solid rgba(255,255,255,0.5);
+            border-radius: 50px; color: white; font-size: 1.2em; padding: 15px 30px;
+            cursor: pointer; transition: all 0.3s ease; backdrop-filter: blur(10px);
+            touch-action: manipulation;
+        }
+        button:hover:not(:disabled) { background: rgba(255,255,255,0.3); transform: scale(1.05); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #ar-container { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
+        #save-btn, #share-btn { position: fixed; top: 20px; z-index: 50; right: 20px; }
+        #share-btn { top: 80px; background: #4CAF50; }
+        #error-msg, #permission-failed, #feed-error { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(255,255,255,0.9); padding: 20px; border-radius: 10px; display: none;
+            text-align: center; z-index: 200; color: black; max-width: 80%; }
+        #permission-failed button, #feed-error button { margin: 10px; background: #4CAF50; color: white; border: none; padding: 10px 20px; border-radius: 5px; }
+        #permission-failed button.cancel, #feed-error button.cancel { background: #f44336; }
+        #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);
+            display: none; justify-content: center; align-items: center; z-index: 100; flex-direction: column; }
+        .spinner { border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @media (max-width: 480px) { #intro h1 { font-size: 1.5em; } button { font-size: 1em; padding: 12px 24px; } }
+    </style>
 </head>
 <body>
-  <div id="app">
-    <!-- 載入畫面 -->
-    <div id="loading">
-      <div class="spinner"></div>
+    <!-- 品牌介紹 -->
+    <div id="logo">ARScan Pro</div>
+    <div id="intro">
+        <h1>歡迎使用ARScan Pro</h1>
+        <p>專業AR圖像追蹤：掃描指定圖像，解鎖互動體驗</p>
+        <button id="start-ar">進入AR (Enter AR)</button>
+        <div id="status"></div>
     </div>
 
-    <!-- 啟動畫面 -->
-    <section id="start-screen" class="screen hidden">
-      <div class="branding">
-        <h1>AR Overlay</h1>
-        <p>點擊下方按鈕開啟後置鏡頭</p>
-      </div>
-      <button id="btn-start" class="btn btn-primary big">
-        <span class="icon">📷</span>
-        啟動相機
-      </button>
-      <div class="tip">不會上傳影像，僅在本機處理</div>
-    </section>
-
-    <!-- 權限對話框 -->
-    <div id="permission-dialog" class="hidden">
-      <div class="dialog-content">
-        <h2>需要相機權限</h2>
-        <p>為了啟動 AR 體驗，我們需要存取您的後置相機。您的隱私將受到保護，所有處理均在本裝置進行。</p>
-        <button id="btn-grant" class="btn btn-primary">授予權限</button>
-        <button id="btn-deny" class="btn btn-outline">稍後</button>
-      </div>
+    <!-- 權限失敗對話框 -->
+    <div id="permission-failed">
+        <h2>權限請求失敗</h2>
+        <p>請點擊「允許」系統彈窗，或去設定 > Safari > 運動與方向 > 允許本網站。若仍卡住，重啟瀏覽器或切Chrome。</p>
+        <button id="retry-permission">重試 (Retry)</button>
+        <button class="cancel" onclick="cancelStart()">取消 (Cancel)</button>
     </div>
 
-    <!-- 相機+疊加區 -->
-    <section id="camera-screen" class="screen hidden">
-      <div id="camera-container">
-        <video id="camera" playsinline autoplay muted></video>
-        <canvas id="ar-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></canvas>
-
-        <!-- 疊加容器（AR效果，使用 Canvas overlay） -->
-        <div id="overlay-container" aria-hidden="true" class="hidden">
-          <img id="overlay-image" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMDBkNGZmIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7vv70g5Lit5b+DPC90ZXh0Pjwvc3ZnPg==" alt="預設疊加圖片" />
-          <video id="overlay-video" loop muted playsinline class="hidden">
-            <source src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZm... (佔位：替換為實際 mp4 base64 或 URL)" type="video/mp4" />
-          </video>
-        </div>
-
-        <!-- 視覺輔助：可選的水平掃描線 -->
-        <div id="scan-line"></div>
-      </div>
-
-      <!-- 頂部工具列 -->
-      <header class="topbar">
-        <button id="btn-torch" class="btn icon-only" title="手電筒">🔦</button>
-        <div class="spacer"></div>
-        <button id="btn-switch-content" class="btn" title="切換疊加（圖/影片）">切換疊加</button>
-        <button id="btn-settings" class="btn icon-only" title="設定">⚙️</button>
-      </header>
-
-      <!-- 底部即時提示 -->
-      <div id="status-tip" class="status-tip hidden">
-        <span class="dot"></span>
-        <span id="status-text">準備中...</span>
-      </div>
-
-      <!-- 底部工具列 -->
-      <footer class="bottombar">
-        <div class="bar">
-          <button id="btn-capture" class="btn btn-primary">
-            <span class="icon">⬇️</span> 截圖保存
-          </button>
-          <button id="btn-arjs" class="btn outline" title="AR.js 影像追蹤模式">AR.js 模式</button>
-        </div>
-      </footer>
-    </section>
-
-    <!-- 錯誤提示 -->
-    <div id="error-tip" class="hidden">
-      <p id="error-text">載入失敗，請檢查網路並重試。</p>
-      <button onclick="location.reload()" class="btn btn-primary" style="margin-top: 1rem;">重試</button>
+    <!-- Feed黑屏/綠點缺失專屬錯誤 -->
+    <div id="feed-error">
+        <h2>鏡頭Feed未顯示（綠點缺失）</h2>
+        <p>權限已授權但無綠點/黑屏？1. 從右上角下滑檢查Control Center（綠點應顯示）。2. 設定 > Safari > 進階 > 實驗性功能 > 啟用「Motion & Orientation Access」與「WebRTC」。3. 強制重啟iPhone（按音量+、音量-、側邊）。4. 試Chrome。5. Privacy & Security > Camera > 允許Safari。</p>
+        <button id="retry-feed">重試Feed</button>
+        <button class="cancel" onclick="retryStart()">返回開始</button>
     </div>
-  </div>
 
-  <!-- 隱藏處理用畫布 -->
-  <canvas id="proc-canvas" class="hidden"></canvas>
-  <canvas id="capture-canvas" class="hidden"></canvas>
+    <!-- 載入覆蓋層 -->
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <p>初始化AR中... (Initializing...)</p>
+    </div>
 
-  <!-- MindAR CDN 載入 (修復：使用 script 標籤 + 最新 v1.2.5) -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/aframe@1.5.0/dist/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar-js@1.2.5/dist/mindar-image.prod.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar-js@1.2.5/dist/mindar-image-three.prod.js"></script>
+    <!-- AR 容器 -->
+    <div id="ar-container">
+        <a-scene 
+            id="ar-scene"
+            mindar-image="imageTargetSrc: https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/image-tracking/assets/card-example/card.mind; autoStart: false; uiScanning: none;"
+            color-space="sRGB" 
+            renderer="colorManagement: true, physicallyCorrectLights" 
+            vr-mode-ui="enabled: false" 
+            embedded>
+            
+            <a-assets>
+                <img id="card-img" src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/image-tracking/assets/card-example/card.png" crossorigin="anonymous" />
+                <a-asset-item id="avatar-model" src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/image-tracking/assets/card-example/softmind/scene.gltf" crossorigin="anonymous"></a-asset-item>
+            </a-assets>
 
-  <script>
-    // app.js - 非模組版本，global MindARThree
-    class ARApp {
-      constructor() {
-        this.startScreen = document.getElementById('start-screen');
-        this.cameraScreen = document.getElementById('camera-screen');
-        this.permissionDialog = document.getElementById('permission-dialog');
-        this.loading = document.getElementById('loading');
-        this.errorTip = document.getElementById('error-tip');
-        this.errorText = document.getElementById('error-text');
-        this.camera = document.getElementById('camera');
-        this.arCanvas = document.getElementById('ar-canvas');
-        this.overlayContainer = document.getElementById('overlay-container');
-        this.overlayImage = document.getElementById('overlay-image');
-        this.overlayVideo = document.getElementById('overlay-video');
-        this.statusTip = document.getElementById('status-tip');
-        this.statusText = document.getElementById('status-text');
-        this.procCanvas = document.getElementById('proc-canvas');
-        this.captureCanvas = document.getElementById('capture-canvas');
-        this.btnStart = document.getElementById('btn-start');
-        this.btnGrant = document.getElementById('btn-grant');
-        this.btnDeny = document.getElementById('btn-deny');
-        this.btnCapture = document.getElementById('btn-capture');
-        this.btnSwitchContent = document.getElementById('btn-switch-content');
-        this.btnTorch = document.getElementById('btn-torch');
-        this.btnArjs = document.getElementById('btn-arjs');
-        this.btnSettings = document.getElementById('btn-settings');
-        this.scanLine = document.getElementById('scan-line');
+            <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-        // 預設 tracker (base64 範例，替換為您的圖片 base64 或 'assets/tracker-image.jpg')
-        this.trackerImageUrl = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD... (下載 MindAR 範例圖片轉 base64)';
-        this.overlayImageSrc = this.overlayImage.src; // 已內嵌
-        this.overlayVideoSrc = this.overlayVideo.querySelector('source').src;
+            <a-entity mindar-image-target="targetIndex: 0">
+                <a-plane src="#card-img" position="0 0 0" height="0.552" width="1" rotation="0 0 0"></a-plane>
+                <a-gltf-model 
+                    rotation="0 0 0" 
+                    position="0 0 0.1" 
+                    scale="0.005 0.005 0.005" 
+                    src="#avatar-model"
+                    animation="property: position; to: 0 0.1 0.1; dur: 1000; easing: easeInOutQuad; loop: true; dir: alternate">
+                </a-gltf-model>
+            </a-entity>
+        </a-scene>
+        <button id="save-btn">儲存畫面 (Save)</button>
+        <button id="share-btn">分享 (Share)</button>
+    </div>
 
-        this.startMindAR = null;
-        this.isVideoMode = false;
-        this.isTorchOn = false;
+    <!-- 錯誤訊息 -->
+    <div id="error-msg">
+        <h2>發生錯誤 (Error)</h2>
+        <p id="error-text">請檢查權限並重試 (Check permissions and retry)。</p>
+        <button onclick="closeError()">關閉 (Close)</button>
+    </div>
 
-        // 雙重保險：載入後立即隱藏 + 超時
-        this.hideLoading();
-        setTimeout(() => this.hideLoading(), 5000); // 5秒 fallback
+    <script>
+        // 商業版全局變數
+        let arSystem, cameraStream;
+        let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        const isHTTPS = location.protocol === 'https:' || location.hostname === 'localhost';
+        console.log('Debug: Protocol = ' + location.protocol + ', Hostname = ' + location.hostname + ', iOS: ' + isIOS); // 全面debug
 
-        this.initEventListeners();
-      }
+        // DOM元素
+        const startBtn = document.getElementById('start-ar');
+        const arContainer = document.getElementById('ar-container');
+        const arScene = document.getElementById('ar-scene');
+        const saveBtn = document.getElementById('save-btn');
+        const shareBtn = document.getElementById('share-btn');
+        const errorMsg = document.getElementById('error-msg');
+        const errorText = document.getElementById('error-text');
+        const status = document.getElementById('status');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const permissionFailed = document.getElementById('permission-failed');
+        const feedError = document.getElementById('feed-error');
+        const retryBtn = document.getElementById('retry-permission');
+        const retryFeedBtn = document.getElementById('retry-feed');
 
-      initEventListeners() {
-        this.btnStart.addEventListener('click', () => this.requestPermissions());
-        this.btnGrant.addEventListener('click', () => this.initCamera());
-        this.btnDeny.addEventListener('click', () => this.showStartScreen());
-        this.btnCapture.addEventListener('click', () => this.captureScreenshot());
-        this.btnSwitchContent.addEventListener('click', () => this.toggleOverlayContent());
-        this.btnTorch.addEventListener('click', () => this.toggleTorch());
-        this.btnArjs.addEventListener('click', () => this.toggleARMode());
-        this.btnSettings.addEventListener('click', () => this.openSettings());
+        // 第一重：預請求相機（權限成功後不觸發"檢查權限"錯誤）
+        async function requestCameraStream() {
+            if (!isHTTPS) console.warn('非HTTPS，可能不穩定');
+            try {
+                status.textContent = '請求後置相機權限... (綠點應出現)';
+                cameraStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+                });
+                console.log('Stream狀態: ' + (cameraStream.active ? 'active' : 'inactive') + ', Tracks: ' + cameraStream.getVideoTracks().length);
+                if (cameraStream.active && cameraStream.getVideoTracks().length > 0) {
+                    gtag('event', 'camera_granted');
+                    return cameraStream;
+                } else {
+                    throw new Error('Stream不活躍，重試');
+                }
+            } catch (err) {
+                console.error('相機錯誤:', err);
+                throw new Error('相機權限失敗：' + err.message + '。檢查Privacy > Camera > Safari。');
+            }
+        }
 
-        this.camera.addEventListener('error', (e) => {
-          console.error('Camera error:', e);
-          this.updateStatus('相機錯誤，請重試', 'error');
-          this.showError('相機初始化失敗');
+        // 手動iOS權限
+        async function requestIOSPermissions() {
+            if (!isIOS) return 'granted';
+            status.textContent = '請求運動與方向權限...';
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            let motionGranted = 'granted';
+            if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                motionGranted = await DeviceMotionEvent.requestPermission();
+            }
+            let orientationGranted = 'granted';
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                orientationGranted = await DeviceOrientationEvent.requestPermission();
+            }
+
+            if (motionGranted === 'granted' && orientationGranted === 'granted') {
+                status.textContent = '權限OK，啟動鏡頭... (檢查綠點)';
+                gtag('event', 'orientation_granted');
+                return 'granted';
+            } else {
+                throw new Error('運動/方向權限拒絕。檢查Safari實驗功能。');
+            }
+        }
+
+        // 啟動AR（修復：'canplay'監聽 + Safari flags + 自動重試）
+        async function startAR() {
+            try {
+                const stream = await requestCameraStream();
+                await requestIOSPermissions();
+
+                arContainer.style.display = 'block';
+                document.getElementById('intro').style.display = 'none';
+                setTimeout(() => loadingOverlay.style.display = 'flex', 200);
+
+                arScene.addEventListener('loaded', () => {
+                    arSystem = arScene.systems['mindar-image-system'];
+
+                    // 修復：注入 + 'canplay'監聽（iOS可靠）
+                    const injectVideo = (retryCount = 0) => {
+                        if (arSystem && arSystem.video) {
+                            arSystem.video.srcObject = stream;
+                            arSystem.video.muted = true;
+                            arSystem.video.playsInline = true;
+                            if (isIOS) arSystem.video.webkitPlaysInline = true; // Safari專屬
+                            arSystem.video.play().catch(e => console.error('Play錯誤:', e));
+
+                            console.log('Stream注入video，嘗試播放');
+
+                            // 監聽'canplay'（確認可播放/渲染）
+                            arSystem.video.addEventListener('canplay', () => {
+                                console.log('Video canplay - Feed準備好');
+                                loadingOverlay.style.display = 'none';
+                                status.textContent = 'AR啟動，掃描圖像... (綠點應顯示)';
+                                gtag('event', 'feed_displayed');
+                                clearTimeout(startTimeout);
+                            }, { once: true });
+
+                            // Fallback: 'loadedmetadata'若'canplay'延遲
+                            arSystem.video.addEventListener('loadedmetadata', () => {
+                                console.log('Video metadata載入');
+                            }, { once: true });
+
+                            gtag('event', 'feed_injected');
+                        } else if (retryCount < 3) {
+                            console.warn('Video未找到，重試 ' + (retryCount + 1));
+                            setTimeout(() => injectVideo(retryCount + 1), 300);
+                        } else {
+                            throw new Error('Video注入失敗');
+                        }
+                    };
+                    injectVideo();
+
+                    // 事件監聽（區分錯誤）
+                    arScene.addEventListener('arError', (e) => {
+                        console.error('AR錯誤:', e.detail);
+                        if (e.detail.includes('permission')) {
+                            permissionFailed.style.display = 'block'; // 僅權限錯誤用此
+                        } else {
+                            feedError.style.display = 'block'; // 其他用feed錯誤
+                        }
+                        loadingOverlay.style.display = 'none';
+                        gtag('event', 'ar_error', { type: 'permission_or_render' });
+                        cleanupStream();
+                    });
+
+                    arScene.addEventListener('camera-error', (e) => {
+                        console.error('Camera錯誤:', e.detail);
+                        feedError.style.display = 'block';
+                        gtag('event', 'green_dot_missing');
+                    });
+
+                    arScene.addEventListener('arReady', () => {
+                        console.log('AR就緒！');
+                        if (loadingOverlay.style.display !== 'none') loadingOverlay.style.display = 'none';
+                        status.textContent = 'AR啟動，掃描圖像...';
+                        gtag('event', 'ar_ready');
+                    });
+
+                    // 超時：無canplay則重試stream
+                    startTimeout = setTimeout(() => {
+                        if (loadingOverlay.style.display !== 'none') {
+                            console.warn('Feed超時，重新獲取stream');
+                            cleanupStream();
+                            requestCameraStream().then(newStream => {
+                                cameraStream = newStream;
+                                injectVideo();
+                            }).catch(() => feedError.style.display = 'block');
+                            gtag('event', 'feed_timeout');
+                        }
+                    }, 3000);
+
+                    arSystem.start();
+                });
+
+                window.addEventListener('beforeunload', cleanupStream);
+            } catch (err) {
+                console.error('啟動錯誤:', err);
+                // 區分：權限錯誤用permission，渲染用feed
+                if (err.message.includes('權限') || err.message.includes('permission')) {
+                    permissionFailed.style.display = 'block';
+                } else {
+                    feedError.style.display = 'block';
+                }
+                loadingOverlay.style.display = 'none';
+                errorText.textContent = err.message;
+                gtag('event', 'start_error', { error: err.message });
+                cleanupStream();
+            }
+        }
+
+        function cleanupStream() {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(t => t.stop());
+                cameraStream = null;
+            }
+        }
+
+        // 事件：進入AR
+        startBtn.addEventListener('click', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            startBtn.disabled = true;
+            startBtn.textContent = '啟動中... (Starting...)';
+            startAR();
         });
 
-        document.addEventListener('visibilitychange', () => {
-          if (!document.hidden && this.cameraScreen.classList.contains('hidden')) {
-            this.requestPermissions();
-          }
-        });
-      }
-
-      hideLoading() {
-        this.loading.classList.add('hidden');
-        this.startScreen.classList.remove('hidden');
-      }
-
-      showError(message) {
-        this.errorText.textContent = message;
-        this.errorTip.classList.remove('hidden');
-        this.loading.classList.add('hidden');
-      }
-
-      async requestPermissions() {
-        if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-          this.showError('請使用 HTTPS 部署。');
-          return;
-        }
-
-        try {
-          const devices = await navigator.mediaDevices.enumerateDevices();
-          const videoDevices = devices.filter(d => d.kind === 'videoinput');
-          if (videoDevices.length === 0) throw new Error('無可用相機');
-
-          const constraints = {
-            video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-            audio: false
-          };
-          const stream = await navigator.mediaDevices.getUserMedia(constraints);
-          stream.getTracks().forEach(track => track.stop());
-
-          this.showPermissionDialog();
-        } catch (err) {
-          console.error('權限錯誤:', err);
-          this.showPermissionDialog('無法存取相機，請檢查設定。');
-        }
-      }
-
-      showPermissionDialog(message = '') {
-        if (message) {
-          document.querySelector('#permission-dialog .dialog-content p').textContent = message;
-        }
-        this.permissionDialog.classList.remove('hidden');
-        this.startScreen.classList.add('hidden');
-      }
-
-      showStartScreen() {
-        this.startScreen.classList.remove('hidden');
-        this.permissionDialog.classList.add('hidden');
-        this.cameraScreen.classList.add('hidden');
-        this.errorTip.classList.add('hidden');
-      }
-
-      async initCamera() {
-        try {
-          this.updateStatus('初始化相機...');
-          let constraints = { video: { facingMode: 'environment' } };
-          let stream;
-          try {
-            stream = await navigator.mediaDevices.getUserMedia(constraints);
-          } catch {
-            constraints = { video: true };
-            stream = await navigator.mediaDevices.getUserMedia(constraints);
-          }
-
-          this.camera.srcObject = stream;
-          await this.camera.play();
-
-          this.startMindAR = await this.initMindAR();
-          if (!this.startMindAR) throw new Error('MindAR 初始化失敗');
-
-          this.permissionDialog.classList.add('hidden');
-          this.cameraScreen.classList.remove('hidden');
-          this.startScreen.classList.add('hidden');
-          this.updateStatus('掃描特定圖片以顯示疊加...');
-          this.scanLine.style.display = 'block';
-
-        } catch (err) {
-          console.error('初始化錯誤:', err);
-          this.updateStatus('初始化失敗，請重試', 'error');
-          this.showStartScreen();
-          this.showError(err.message || '未知錯誤');
-        }
-      }
-
-      async initMindAR() {
-        // 檢查 MindAR 是否載入 (修復：global)
-        if (typeof MINDARIMAGE === 'undefined' || !MINDARIMAGE.MindARThree) {
-          throw new Error('MindAR 庫載入失敗，請檢查網路/CDN');
-        }
-
-        const { container } = { container: document.getElementById('camera-container') };
-        const start = new MINDARIMAGE.MindARThree({
-          container: container,
-          imageTargetSrc: this.trackerImageUrl,
-          interpolationFactor: 0.075,
-          maxTrackLost: 1,
-          uiLoading: false, // 停用內建 loading
-          uiScanning: '#status-tip',
-          filterMinCF: 0.001,
-          filterBeta: 0.01
+        // 重試權限
+        retryBtn.addEventListener('click', () => {
+            permissionFailed.style.display = 'none';
+            cleanupStream();
+            startAR();
         });
 
-        const { renderer, scene, camera: arCamera } = start;
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        this.arCanvas.width = window.innerWidth;
-        this.arCanvas.height = window.innerHeight;
-        renderer.domElement = this.arCanvas;
-
-        start.addEventListener('targetFound', () => {
-          this.overlayContainer.classList.remove('hidden');
-          this.updateStatus('目標找到！');
+        // 重試Feed
+        retryFeedBtn.addEventListener('click', () => {
+            feedError.style.display = 'none';
+            loadingOverlay.style.display = 'flex';
+            if (arSystem) arSystem.stop();
+            cleanupStream();
+            startAR();
         });
 
-        start.addEventListener('targetLost', () => {
-          this.overlayContainer.classList.add('hidden');
-          this.updateStatus('尋找特定圖片...');
+        // 儲存畫面
+        saveBtn.addEventListener('click', () => {
+            html2canvas(arScene.canvas, { scale: 1, useCORS: true, backgroundColor: null })
+                .then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = 'ARScan-Pro.png';
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                    gtag('event', 'save_screenshot');
+                }).catch(err => {
+                    console.error('儲存錯誤:', err);
+                    alert('儲存失敗，重試。');
+                });
         });
 
-        await start.start({ inputSrc: this.camera });
-        return start;
-      }
+        // 分享
+        shareBtn.addEventListener('click', async () => {
+            if (navigator.share) {
+                await navigator.share({ title: 'ARScan Pro', url: location.href });
+                gtag('event', 'share');
+            } else {
+                alert('分享連結：' + location.href);
+            }
+        });
 
-      toggleOverlayContent() {
-        this.isVideoMode = !this.isVideoMode;
-        if (this.isVideoMode) {
-          this.overlayImage.classList.add('hidden');
-          this.overlayVideo.classList.remove('hidden');
-          this.overlayVideo.load(); // 重新載入以播放
-          this.overlayVideo.play().catch(e => console.warn('影片播放警告:', e));
-        } else {
-          this.overlayVideo.classList.add('hidden');
-          this.overlayImage.classList.remove('hidden');
-        }
-      }
-
-      async toggleTorch() {
-        try {
-          const track = this.camera.srcObject.getVideoTracks()[0];
-          if (!track) return;
-          await track.applyConstraints({ advanced: [{ torch: !this.isTorchOn }] });
-          this.isTorchOn = !this.isTorchOn;
-          this.btnTorch.style.opacity = this.isTorchOn ? '0.7' : '1';
-        } catch (e) {
-          console.warn('手電筒不支持:', e);
-        }
-      }
-
-      toggleARMode() {
-        if (this.startMindAR) {
-          this.startMindAR.stop();
-        }
-        this.updateStatus('切換 AR.js 模式...');
-        // 未來擴展
-      }
-
-      openSettings() {
-        alert('設定：\n- 調整亮度\n- 選擇追蹤圖片\n- 未來 3D 選項');
-      }
-
-      captureScreenshot() {
-        const ctx = this.captureCanvas.getContext('2d');
-        this.captureCanvas.width = this.camera.videoWidth;
-        this.captureCanvas.height = this.camera.videoHeight;
-        ctx.drawImage(this.camera, 0, 0);
-
-        if (!this.overlayContainer.classList.contains('hidden')) {
-          const rect = this.overlayImage.getBoundingClientRect();
-          ctx.drawImage(this.overlayImage, rect.left, rect.top, rect.width, rect.height);
-        }
-
-        this.captureCanvas.toBlob((blob) => {
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `ar-screenshot-${Date.now()}.png`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        }, 'image/png');
-        this.updateStatus('截圖已保存！');
-      }
-
-      updateStatus(text, type = 'info') {
-        this.statusText.textContent = text;
-        this.statusTip.classList.remove('hidden');
-        this.statusTip.style.background = type === 'error' ? 'rgba(255, 0, 0, 0.7)' : 'rgba(0, 0, 0, 0.7)';
-        setTimeout(() => this.statusTip.classList.add('hidden'), 3000);
-      }
-
-      handleResize() {
-        if (this.startMindAR) {
-          this.startMindAR.resize();
-        }
-        if (this.arCanvas) {
-          this.arCanvas.width = window.innerWidth;
-          this.arCanvas.height = window.innerHeight;
-        }
-      }
-    }
-
-    // 初始化
-    window.addEventListener('load', () => {
-      try {
-        window.arApp = new ARApp(); // global 存取 resize
-        window.addEventListener('resize', () => window.arApp?.handleResize());
-      } catch (e) {
-        console.error('App 初始化錯誤:', e);
-        document.getElementById('loading').classList.add('hidden');
-        document.getElementById('error-tip').classList.remove('hidden');
-      }
-    });
-
-    // 全域錯誤捕捉
-    window.addEventListener('error', (e) => {
-      console.error('全域錯誤:', e.error);
-      document.getElementById('loading').classList.add('hidden');
-      document.getElementById('error-text').textContent = '發生錯誤，請重新載入。';
-      document.getElementById('error-tip').classList.remove('hidden');
-    });
-  </script>
+        // 輔助
+        function closeError() { errorMsg.style.display = 'none'; startBtn.disabled = false; startBtn.textContent = '進入AR (Enter AR)'; status.textContent = ''; }
+        function cancelStart() { permissionFailed.style.display = 'none'; startBtn.disabled = false; startBtn.textContent = '進入AR (Enter AR)'; status.textContent = ''; cleanupStream(); }
+        function retryStart() { feedError.style.display = 'none'; startBtn.disabled = false; startBtn.textContent = '進入AR (Enter AR)'; status.textContent = ''; document.getElementById('intro').style.display = 'block'; arContainer.style.display = 'none'; cleanupStream(); }
+    </script>
 </body>
 </html>
