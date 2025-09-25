@@ -162,15 +162,15 @@
       justify-content: center;
     }
 
-#camera {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  /* transform: scaleX(-1); */  /* 已註釋，取消反轉 */
-}
+    #camera {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      /* transform: scaleX(-1); 已移除，取消鏡頭反轉 */
+    }
 
     #overlay-container {
       position: absolute;
@@ -513,8 +513,6 @@
         this.initEventListeners();
       }
 
-      // ... (initEventListeners, hideLoading, showError, requestPermissions, showPermissionDialog, showStartScreen, initCamera, toggleOverlayContent, toggleTorch, toggleARMode, openSettings, captureScreenshot, updateStatus, handleResize 方法保持不變，省略)
-
       initEventListeners() {
         this.btnStart.addEventListener('click', () => this.requestPermissions());
         this.btnGrant.addEventListener('click', () => this.initCamera());
@@ -713,21 +711,46 @@
         ctx.drawImage(this.camera, 0, 0);
 
         if (!this.overlayContainer.classList.contains('hidden')) {
-          const rect = this.overlayImage.getBoundingClientRect();
-          ctx.drawImage(this.overlayImage, rect.left, rect.top, rect.width, rect.height);
+          const overlayElem = this.isVideoMode ? this.overlayVideo : this.overlayImage;
+          const rect = overlayElem.getBoundingClientRect();
+          ctx.drawImage(overlayElem, rect.left, rect.top, rect.width, rect.height);
         }
 
         this.captureCanvas.toBlob((blob) => {
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `ar-screenshot-${Date.now()}.png`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
+          const filename = `ar-screenshot-${Date.now()}.png`;
+          const file = new File([blob], filename, { type: 'image/png' });
+
+          // 新增：嘗試使用 Web Share API 分享（優先存相簿）
+          if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+            navigator.share({
+              title: 'AR 截圖',
+              text: '來自 AR Overlay 的酷炫截圖！',
+              files: [file]
+            }).then(() => {
+              console.log('分享成功');
+              this.updateStatus('截圖已分享，可存到相簿！');
+            }).catch((err) => {
+              console.warn('分享失敗，回退下載:', err);
+              this.downloadFallback(blob, filename);  // Fallback 到下載
+            });
+          } else {
+            // Fallback：原下載邏輯
+            this.downloadFallback(blob, filename);
+          }
         }, 'image/png');
-        this.updateStatus('截圖已保存！');
+      }
+
+      // 新增輔助方法：下載 fallback
+      downloadFallback(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        this.updateStatus('截圖已下載！');
       }
 
       updateStatus(text, type = 'info') {
