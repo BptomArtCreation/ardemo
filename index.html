@@ -452,4 +452,316 @@
           <button id="btn-capture" class="btn btn-primary">
             <span class="icon">⬇️</span> 截圖保存
           </button>
-          <button id="btn-arjs" class="btn outline" title="AR.js
+          <button id="btn-arjs" class="btn outline" title="AR.js 影像追蹤模式">AR.js 模式</button>
+        </div>
+      </footer>
+    </section>
+
+    <!-- 錯誤提示 -->
+    <div id="error-tip" class="hidden">
+      <p id="error-text">載入失敗，請檢查網路並重試。</p>
+      <button onclick="location.reload()" class="btn btn-primary" style="margin-top: 1rem;">重試</button>
+    </div>
+  </div>
+
+  <!-- 隱藏處理用畫布 -->
+  <canvas id="proc-canvas" class="hidden"></canvas>
+  <canvas id="capture-canvas" class="hidden"></canvas>
+
+  <!-- MindAR CDN 載入 (修復：使用 script 標籤 + 最新 v1.2.5) -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/aframe@1.5.0/dist/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar-js@1.2.5/dist/mindar-image.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar-js@1.2.5/dist/mindar-image-three.prod.js"></script>
+
+  <script>
+    // app.js - 非模組版本，global MindARThree
+    class ARApp {
+      constructor() {
+        this.startScreen = document.getElementById('start-screen');
+        this.cameraScreen = document.getElementById('camera-screen');
+        this.permissionDialog = document.getElementById('permission-dialog');
+        this.loading = document.getElementById('loading');
+        this.errorTip = document.getElementById('error-tip');
+        this.errorText = document.getElementById('error-text');
+        this.camera = document.getElementById('camera');
+        this.arCanvas = document.getElementById('ar-canvas');
+        this.overlayContainer = document.getElementById('overlay-container');
+        this.overlayImage = document.getElementById('overlay-image');
+        this.overlayVideo = document.getElementById('overlay-video');
+        this.statusTip = document.getElementById('status-tip');
+        this.statusText = document.getElementById('status-text');
+        this.procCanvas = document.getElementById('proc-canvas');
+        this.captureCanvas = document.getElementById('capture-canvas');
+        this.btnStart = document.getElementById('btn-start');
+        this.btnGrant = document.getElementById('btn-grant');
+        this.btnDeny = document.getElementById('btn-deny');
+        this.btnCapture = document.getElementById('btn-capture');
+        this.btnSwitchContent = document.getElementById('btn-switch-content');
+        this.btnTorch = document.getElementById('btn-torch');
+        this.btnArjs = document.getElementById('btn-arjs');
+        this.btnSettings = document.getElementById('btn-settings');
+        this.scanLine = document.getElementById('scan-line');
+
+        // 預設 tracker (base64 範例，替換為您的圖片 base64 或 'assets/tracker-image.jpg')
+        this.trackerImageUrl = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD... (下載 MindAR 範例圖片轉 base64)';
+        this.overlayImageSrc = this.overlayImage.src; // 已內嵌
+        this.overlayVideoSrc = this.overlayVideo.querySelector('source').src;
+
+        this.startMindAR = null;
+        this.isVideoMode = false;
+        this.isTorchOn = false;
+
+        // 雙重保險：載入後立即隱藏 + 超時
+        this.hideLoading();
+        setTimeout(() => this.hideLoading(), 5000); // 5秒 fallback
+
+        this.initEventListeners();
+      }
+
+      initEventListeners() {
+        this.btnStart.addEventListener('click', () => this.requestPermissions());
+        this.btnGrant.addEventListener('click', () => this.initCamera());
+        this.btnDeny.addEventListener('click', () => this.showStartScreen());
+        this.btnCapture.addEventListener('click', () => this.captureScreenshot());
+        this.btnSwitchContent.addEventListener('click', () => this.toggleOverlayContent());
+        this.btnTorch.addEventListener('click', () => this.toggleTorch());
+        this.btnArjs.addEventListener('click', () => this.toggleARMode());
+        this.btnSettings.addEventListener('click', () => this.openSettings());
+
+        this.camera.addEventListener('error', (e) => {
+          console.error('Camera error:', e);
+          this.updateStatus('相機錯誤，請重試', 'error');
+          this.showError('相機初始化失敗');
+        });
+
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden && this.cameraScreen.classList.contains('hidden')) {
+            this.requestPermissions();
+          }
+        });
+      }
+
+      hideLoading() {
+        this.loading.classList.add('hidden');
+        this.startScreen.classList.remove('hidden');
+      }
+
+      showError(message) {
+        this.errorText.textContent = message;
+        this.errorTip.classList.remove('hidden');
+        this.loading.classList.add('hidden');
+      }
+
+      async requestPermissions() {
+        if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+          this.showError('請使用 HTTPS 部署。');
+          return;
+        }
+
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const videoDevices = devices.filter(d => d.kind === 'videoinput');
+          if (videoDevices.length === 0) throw new Error('無可用相機');
+
+          const constraints = {
+            video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+            audio: false
+          };
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          stream.getTracks().forEach(track => track.stop());
+
+          this.showPermissionDialog();
+        } catch (err) {
+          console.error('權限錯誤:', err);
+          this.showPermissionDialog('無法存取相機，請檢查設定。');
+        }
+      }
+
+      showPermissionDialog(message = '') {
+        if (message) {
+          document.querySelector('#permission-dialog .dialog-content p').textContent = message;
+        }
+        this.permissionDialog.classList.remove('hidden');
+        this.startScreen.classList.add('hidden');
+      }
+
+      showStartScreen() {
+        this.startScreen.classList.remove('hidden');
+        this.permissionDialog.classList.add('hidden');
+        this.cameraScreen.classList.add('hidden');
+        this.errorTip.classList.add('hidden');
+      }
+
+      async initCamera() {
+        try {
+          this.updateStatus('初始化相機...');
+          let constraints = { video: { facingMode: 'environment' } };
+          let stream;
+          try {
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+          } catch {
+            constraints = { video: true };
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+          }
+
+          this.camera.srcObject = stream;
+          await this.camera.play();
+
+          this.startMindAR = await this.initMindAR();
+          if (!this.startMindAR) throw new Error('MindAR 初始化失敗');
+
+          this.permissionDialog.classList.add('hidden');
+          this.cameraScreen.classList.remove('hidden');
+          this.startScreen.classList.add('hidden');
+          this.updateStatus('掃描特定圖片以顯示疊加...');
+          this.scanLine.style.display = 'block';
+
+        } catch (err) {
+          console.error('初始化錯誤:', err);
+          this.updateStatus('初始化失敗，請重試', 'error');
+          this.showStartScreen();
+          this.showError(err.message || '未知錯誤');
+        }
+      }
+
+      async initMindAR() {
+        // 檢查 MindAR 是否載入 (修復：global)
+        if (typeof MINDARIMAGE === 'undefined' || !MINDARIMAGE.MindARThree) {
+          throw new Error('MindAR 庫載入失敗，請檢查網路/CDN');
+        }
+
+        const { container } = { container: document.getElementById('camera-container') };
+        const start = new MINDARIMAGE.MindARThree({
+          container: container,
+          imageTargetSrc: this.trackerImageUrl,
+          interpolationFactor: 0.075,
+          maxTrackLost: 1,
+          uiLoading: false, // 停用內建 loading
+          uiScanning: '#status-tip',
+          filterMinCF: 0.001,
+          filterBeta: 0.01
+        });
+
+        const { renderer, scene, camera: arCamera } = start;
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        this.arCanvas.width = window.innerWidth;
+        this.arCanvas.height = window.innerHeight;
+        renderer.domElement = this.arCanvas;
+
+        start.addEventListener('targetFound', () => {
+          this.overlayContainer.classList.remove('hidden');
+          this.updateStatus('目標找到！');
+        });
+
+        start.addEventListener('targetLost', () => {
+          this.overlayContainer.classList.add('hidden');
+          this.updateStatus('尋找特定圖片...');
+        });
+
+        await start.start({ inputSrc: this.camera });
+        return start;
+      }
+
+      toggleOverlayContent() {
+        this.isVideoMode = !this.isVideoMode;
+        if (this.isVideoMode) {
+          this.overlayImage.classList.add('hidden');
+          this.overlayVideo.classList.remove('hidden');
+          this.overlayVideo.load(); // 重新載入以播放
+          this.overlayVideo.play().catch(e => console.warn('影片播放警告:', e));
+        } else {
+          this.overlayVideo.classList.add('hidden');
+          this.overlayImage.classList.remove('hidden');
+        }
+      }
+
+      async toggleTorch() {
+        try {
+          const track = this.camera.srcObject.getVideoTracks()[0];
+          if (!track) return;
+          await track.applyConstraints({ advanced: [{ torch: !this.isTorchOn }] });
+          this.isTorchOn = !this.isTorchOn;
+          this.btnTorch.style.opacity = this.isTorchOn ? '0.7' : '1';
+        } catch (e) {
+          console.warn('手電筒不支持:', e);
+        }
+      }
+
+      toggleARMode() {
+        if (this.startMindAR) {
+          this.startMindAR.stop();
+        }
+        this.updateStatus('切換 AR.js 模式...');
+        // 未來擴展
+      }
+
+      openSettings() {
+        alert('設定：\n- 調整亮度\n- 選擇追蹤圖片\n- 未來 3D 選項');
+      }
+
+      captureScreenshot() {
+        const ctx = this.captureCanvas.getContext('2d');
+        this.captureCanvas.width = this.camera.videoWidth;
+        this.captureCanvas.height = this.camera.videoHeight;
+        ctx.drawImage(this.camera, 0, 0);
+
+        if (!this.overlayContainer.classList.contains('hidden')) {
+          const rect = this.overlayImage.getBoundingClientRect();
+          ctx.drawImage(this.overlayImage, rect.left, rect.top, rect.width, rect.height);
+        }
+
+        this.captureCanvas.toBlob((blob) => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `ar-screenshot-${Date.now()}.png`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 'image/png');
+        this.updateStatus('截圖已保存！');
+      }
+
+      updateStatus(text, type = 'info') {
+        this.statusText.textContent = text;
+        this.statusTip.classList.remove('hidden');
+        this.statusTip.style.background = type === 'error' ? 'rgba(255, 0, 0, 0.7)' : 'rgba(0, 0, 0, 0.7)';
+        setTimeout(() => this.statusTip.classList.add('hidden'), 3000);
+      }
+
+      handleResize() {
+        if (this.startMindAR) {
+          this.startMindAR.resize();
+        }
+        if (this.arCanvas) {
+          this.arCanvas.width = window.innerWidth;
+          this.arCanvas.height = window.innerHeight;
+        }
+      }
+    }
+
+    // 初始化
+    window.addEventListener('load', () => {
+      try {
+        window.arApp = new ARApp(); // global 存取 resize
+        window.addEventListener('resize', () => window.arApp?.handleResize());
+      } catch (e) {
+        console.error('App 初始化錯誤:', e);
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('error-tip').classList.remove('hidden');
+      }
+    });
+
+    // 全域錯誤捕捉
+    window.addEventListener('error', (e) => {
+      console.error('全域錯誤:', e.error);
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('error-text').textContent = '發生錯誤，請重新載入。';
+      document.getElementById('error-tip').classList.remove('hidden');
+    });
+  </script>
+</body>
+</html>
