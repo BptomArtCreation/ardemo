@@ -2,790 +2,601 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#13151a" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+  <meta name="theme-color" content="#0d0f14" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <link rel="manifest" href="manifest.webmanifest" />
-  <title>AR Overlay Demo</title>
+  <title>MindAR 行動版範例（圖像追蹤 + 截圖）</title>
+
+  <!-- 字體（可替換） -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+
+  <!-- A-Frame 與 MindAR（鎖定版本） -->
+  <script defer src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
+
   <style>
-    /* 原有樣式保持不變 */
-    :root {
-      --bg-primary: #13151a;
-      --bg-secondary: #1e2127;
-      --accent: #00d4ff;
-      --text-primary: #ffffff;
-      --text-secondary: #a0a0a0;
-      --border: rgba(255, 255, 255, 0.1);
-      --shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-      --radius: 12px;
-      --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    :root{
+      --bg:#0b0e14;
+      --panel:#111520cc;
+      --panel-solid:#141a24;
+      --text:#e8f0ff;
+      --muted:#9fb0c7;
+      --brand:#4ea1ff;
+      --brand-2:#7c4dff;
+      --ok:#35d07f;
+      --warn:#ffb02e;
+      --err:#ff5d5d;
+      --radius:14px;
+      --blur:14px;
     }
-
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+    *{box-sizing:border-box}
+    html,body{height:100%;background:var(--bg);color:var(--text);margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;-webkit-tap-highlight-color:transparent}
+    .app{
+      position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
+      background: radial-gradient(130% 90% at 20% 10%, #0b1530 0%, #0b0e14 40%, #0b0e14 100%);
+      padding:clamp(12px,5vw,24px); padding-bottom: max(16px, env(safe-area-inset-bottom));
     }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg-primary);
-      color: var(--text-primary);
-      overflow: hidden;
-      touch-action: manipulation;
-      -webkit-user-select: none;
-      user-select: none;
+    .card{
+      width:min(680px,92vw);
+      background:linear-gradient(180deg,#141a24 0%,#0e131b 100%);
+      border:1px solid #1f2a3a; border-radius:var(--radius); padding:24px;
+      box-shadow:0 10px 30px #0009;
     }
-
-    #app {
-      position: relative;
-      width: 100vw;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
+    h1{margin:0 0 10px;font-size:clamp(20px,4.7vw,28px);font-weight:600;letter-spacing:.2px}
+    p{margin:0;color:var(--muted);line-height:1.6}
+    .cta{
+      display:flex;gap:12px;flex-wrap:wrap;margin-top:16px
     }
-
-    .screen {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      background: linear-gradient(135deg, var(--bg-primary), var(--bg-secondary));
-      z-index: 10;
-      transition: var(--transition);
+    .btn{
+      -webkit-appearance:none;appearance:none;cursor:pointer;
+      border:none;border-radius:12px;padding:14px 18px;font-weight:600;font-size:16px;
+      color:#06101f;background: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%);
+      box-shadow:0 8px 24px #4ea1ff40, inset 0 1px 0 #ffffff50; transition:transform .08s ease, filter .15s ease;
     }
-
-    .screen.hidden {
-      opacity: 0;
-      visibility: hidden;
+    .btn:active{transform:translateY(1px)}
+    .btn.sec{
+      background:#1a2330;color:var(--text);box-shadow: inset 0 0 0 1px #2b3a4f;
     }
+    .hint{display:flex;gap:10px;align-items:flex-start;margin-top:10px;color:var(--muted);font-size:14px}
+    .badge{padding:4px 8px;border-radius:999px;background:#182232;border:1px solid #2b3a4f;color:#a9c4ff;font-size:12px}
 
-    .branding {
-      text-align: center;
-      margin-bottom: 2rem;
-      padding: 0 1rem;
+    /* AR 容器與浮動工具列 */
+    .stage{
+      position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000;
+      opacity:0;pointer-events:none;transition:opacity .25s ease;
     }
-
-    .branding h1 {
-      font-size: clamp(1.5rem, 5vw, 2.5rem);
-      font-weight: 700;
-      margin-bottom: 0.5rem;
-      background: linear-gradient(135deg, var(--accent), #00aaff);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+    .stage.active{opacity:1;pointer-events:auto}
+    .toolbar{
+      position:fixed;inset:0;pointer-events:none;
     }
-
-    .branding p {
-      font-size: 1rem;
-      color: var(--text-secondary);
-      line-height: 1.4;
+    .bar{
+      position:absolute;left:0;right:0;display:flex;justify-content:space-between;align-items:center;
+      padding:10px 14px;gap:8px;pointer-events:auto;
     }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      padding: 1rem 2rem;
-      border: none;
-      border-radius: var(--radius);
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: var(--transition);
-      min-height: 3rem;
-      touch-action: manipulation;
+    .bar.top{top: env(safe-area-inset-top); padding-top: max(6px, env(safe-area-inset-top))}
+    .bar.bottom{bottom: env(safe-area-inset-bottom); padding-bottom: max(8px, env(safe-area-inset-bottom))}
+    .glass{
+      background:var(--panel);backdrop-filter: blur(var(--blur));
+      border:1px solid #1d2736; border-radius:16px; box-shadow:0 10px 30px #0006; padding:8px;
     }
-
-    .btn-primary {
-      background: linear-gradient(135deg, var(--accent), #00aaff);
-      color: white;
-      box-shadow: var(--shadow);
+    .grp{display:flex;gap:8px}
+    .iconbtn{
+      display:inline-flex;align-items:center;gap:8px;
+      background:#121a26;border:1px solid #223047;color:#dfe9ff;
+      border-radius:12px;padding:10px 12px;font-weight:600;font-size:14px;cursor:pointer;
+      box-shadow: inset 0 0 0 1px #1f2a3a; transition: filter .15s ease, transform .08s ease;
     }
+    .iconbtn.primary{background: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%); color:#06101f;border-color:transparent}
+    .iconbtn.green{background: linear-gradient(135deg, #34d399 0%, #10b981 100%); color:#062b1c}
+    .iconbtn.red{background: linear-gradient(135deg, #ff7676 0%, #ff5151 100%); color:#2b0505}
+    .icon{width:18px;height:18px;display:inline-block}
+    .small{font-size:12px;color:var(--muted);margin-left:8px}
 
-    .btn-primary:hover,
-    .btn-primary:active {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 25px rgba(0, 212, 255, 0.4);
+    /* 降級相機模式 */
+    .fallback{
+      position:fixed;inset:0;background:#000;display:none;align-items:center;justify-content:center;
     }
+    .fallback.active{display:flex}
+    #fallbackVideo{width:100%;height:100%;object-fit:cover}
 
-    .btn-outline {
-      background: transparent;
-      color: var(--accent);
-      border: 2px solid var(--accent);
+    /* 提示/吐司 */
+    .toast{
+      position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);
+      background:#0e141f;border:1px solid #223047;color:#dfe9ff;border-radius:12px;padding:10px 14px;
+      opacity:0;pointer-events:none;transition:opacity .25s ease;
     }
+    .toast.show{opacity:1}
+    .status{font-size:13px;color:#a4b5cc}
 
-    .btn-outline:hover {
-      background: var(--accent);
-      color: white;
-    }
-
-    .btn.icon-only {
-      padding: 0.75rem;
-      min-width: 3rem;
-      min-height: 3rem;
-    }
-
-    .big {
-      font-size: 1.2rem;
-      padding: 1.25rem 3rem;
-    }
-
-    .tip {
-      margin-top: 1rem;
-      font-size: 0.875rem;
-      color: var(--text-secondary);
-      text-align: center;
-      padding: 0 1rem;
-    }
-
-    #camera-screen {
-      background: black;
-      justify-content: flex-start;
-    }
-
-    #camera-container {
-      position: relative;
-      flex: 1;
-      width: 100%;
-      height: 100vh;
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    #camera {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      transform: scaleX(-1); /* 鏡像翻轉以匹配 AR 慣例 */
-    }
-
-    #overlay-container {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-    }
-
-    #overlay-image,
-    #overlay-video {
-      position: absolute;
-      max-width: 100%;
-      max-height: 100%;
-      object-fit: contain;
-      pointer-events: auto;
-    }
-
-    #overlay-video.hidden,
-    #overlay-image.hidden {
-      display: none;
-    }
-
-    #scan-line {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, var(--accent), transparent);
-      animation: scan 2s linear infinite;
-      opacity: 0.5;
-    }
-
-    @keyframes scan {
-      0% { top: 0; opacity: 0; }
-      10% { opacity: 1; }
-      90% { opacity: 1; }
-      100% { top: 100%; opacity: 0; }
-    }
-
-    .topbar {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      display: flex;
-      align-items: center;
-      padding: 1rem;
-      background: rgba(0, 0, 0, 0.5);
-      backdrop-filter: blur(10px);
-      z-index: 20;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .spacer {
-      flex: 1;
-    }
-
-    .bottombar {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      padding: 1rem;
-      background: rgba(0, 0, 0, 0.5);
-      backdrop-filter: blur(10px);
-      z-index: 20;
-      border-top: 1px solid var(--border);
-    }
-
-    .bar {
-      display: flex;
-      gap: 1rem;
-      justify-content: center;
-      align-items: center;
-    }
-
-    .status-tip {
-      position: absolute;
-      bottom: 5rem;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.75rem 1.5rem;
-      background: rgba(0, 0, 0, 0.7);
-      border-radius: var(--radius);
-      font-size: 0.875rem;
-      color: var(--text-secondary);
-      z-index: 15;
-    }
-
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--accent);
-      animation: pulse 1.5s infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
-
-    .hidden {
-      display: none !important;
-    }
-
-    canvas.hidden {
-      position: absolute;
-      top: -9999px;
-      left: -9999px;
-    }
-
-    /* 權限對話框樣式 */
-    #permission-dialog {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.8);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 100;
-    }
-
-    #permission-dialog.hidden {
-      display: none;
-    }
-
-    .dialog-content {
-      background: var(--bg-secondary);
-      padding: 2rem;
-      border-radius: var(--radius);
-      text-align: center;
-      max-width: 90%;
-      box-shadow: var(--shadow);
-    }
-
-    .dialog-content h2 {
-      margin-bottom: 1rem;
-      color: var(--accent);
-    }
-
-    .dialog-content p {
-      margin-bottom: 1.5rem;
-      color: var(--text-secondary);
-      line-height: 1.4;
-    }
-
-    /* 媒體查詢：確保手機優先 */
-    @media (max-width: 480px) {
-      .bar {
-        flex-direction: column;
-        gap: 0.75rem;
-      }
-
-      .btn {
-        width: 100%;
-        justify-content: center;
-      }
-    }
-
-    /* 載入指示器 */
-    #loading {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: var(--bg-primary);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 50;
-    }
-
-    .spinner {
-      width: 40px;
-      height: 40px;
-      border: 4px solid var(--border);
-      border-top: 4px solid var(--accent);
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-
-    /* 錯誤提示 */
-    #error-tip {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(255, 0, 0, 0.9);
-      color: white;
-      padding: 1rem;
-      border-radius: var(--radius);
-      text-align: center;
-      z-index: 100;
-      max-width: 90%;
-    }
+    /* A-Frame 置頂 */
+    a-scene{position:fixed !important;inset:0 !important}
   </style>
 </head>
 <body>
-  <div id="app">
-    <!-- 載入畫面 -->
-    <div id="loading">
-      <div class="spinner"></div>
-    </div>
-
-    <!-- 啟動畫面 -->
-    <section id="start-screen" class="screen hidden">
-      <div class="branding">
-        <h1>AR Overlay</h1>
-        <p>點擊下方按鈕開啟後置鏡頭</p>
+  <div class="app" id="home">
+    <div class="card">
+      <div class="badge">MindAR + A‑Frame（行動裝置）</div>
+      <h1>影像追蹤 AR（後鏡頭、影片/圖片覆層、可截圖）</h1>
+      <p>點擊下方按鈕進入 AR。我們會先請求必要權限（相機、動作感測、螢幕常亮）並使用後鏡頭。若裝置不支援，會自動降級到純相機模式，依然可以截圖。</p>
+      <div class="hint">測試圖像（用另一台裝置開）：&nbsp;<a href="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.2/examples/assets/card/card.png" target="_blank">card.png</a></div>
+      <div class="cta">
+        <button class="btn" id="enterBtn">進入 AR</button>
+        <button class="btn sec" id="howBtn">如何部署</button>
       </div>
-      <button id="btn-start" class="btn btn-primary big">
-        <span class="icon">📷</span>
-        啟動相機
-      </button>
-      <div class="tip">不會上傳影像，僅在本機處理</div>
-    </section>
-
-    <!-- 權限對話框 -->
-    <div id="permission-dialog" class="hidden">
-      <div class="dialog-content">
-        <h2>需要相機權限</h2>
-        <p>為了啟動 AR 體驗，我們需要存取您的後置相機。您的隱私將受到保護，所有處理均在本裝置進行。</p>
-        <button id="btn-grant" class="btn btn-primary">授予權限</button>
-        <button id="btn-deny" class="btn btn-outline">稍後</button>
+      <div class="hint">
+        <span class="status">註：相機需 HTTPS 或 localhost（iOS/Android 安全限制）。</span>
       </div>
-    </div>
-
-    <!-- 相機+疊加區 -->
-    <section id="camera-screen" class="screen hidden">
-      <div id="camera-container">
-        <video id="camera" playsinline autoplay muted></video>
-        <canvas id="ar-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></canvas>
-
-        <!-- 疊加容器（AR效果，使用 Canvas overlay） -->
-        <div id="overlay-container" aria-hidden="true" class="hidden">
-          <img id="overlay-image" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMDBkNGZmIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7vv70g5Lit5b+DPC90ZXh0Pjwvc3ZnPg==" alt="預設疊加圖片" />
-          <video id="overlay-video" loop muted playsinline class="hidden">
-            <source src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZm... (佔位：替換為實際 mp4 base64 或 URL)" type="video/mp4" />
-          </video>
-        </div>
-
-        <!-- 視覺輔助：可選的水平掃描線 -->
-        <div id="scan-line"></div>
-      </div>
-
-      <!-- 頂部工具列 -->
-      <header class="topbar">
-        <button id="btn-torch" class="btn icon-only" title="手電筒">🔦</button>
-        <div class="spacer"></div>
-        <button id="btn-switch-content" class="btn" title="切換疊加（圖/影片）">切換疊加</button>
-        <button id="btn-settings" class="btn icon-only" title="設定">⚙️</button>
-      </header>
-
-      <!-- 底部即時提示 -->
-      <div id="status-tip" class="status-tip hidden">
-        <span class="dot"></span>
-        <span id="status-text">準備中...</span>
-      </div>
-
-      <!-- 底部工具列 -->
-      <footer class="bottombar">
-        <div class="bar">
-          <button id="btn-capture" class="btn btn-primary">
-            <span class="icon">⬇️</span> 截圖保存
-          </button>
-          <button id="btn-arjs" class="btn outline" title="AR.js 影像追蹤模式">AR.js 模式</button>
-        </div>
-      </footer>
-    </section>
-
-    <!-- 錯誤提示 -->
-    <div id="error-tip" class="hidden">
-      <p id="error-text">載入失敗，請檢查網路並重試。</p>
-      <button onclick="location.reload()" class="btn btn-primary" style="margin-top: 1rem;">重試</button>
     </div>
   </div>
 
-  <!-- 隱藏處理用畫布 -->
-  <canvas id="proc-canvas" class="hidden"></canvas>
-  <canvas id="capture-canvas" class="hidden"></canvas>
+  <!-- AR 場景 -->
+  <div class="stage" id="stage">
+    <!-- 浮動工具列 -->
+    <div class="toolbar">
+      <div class="bar top">
+        <div class="glass grp">
+          <button class="iconbtn" id="helpBtn">
+            <span class="icon">❓</span>說明
+          </button>
+          <div class="small" id="statusText">就緒</div>
+        </div>
+        <div class="grp">
+          <button class="iconbtn red" id="exitBtn"><span class="icon">✖</span>離開</button>
+        </div>
+      </div>
+      <div class="bar bottom">
+        <div class="grp"></div>
+        <div class="grp glass">
+          <button class="iconbtn primary" id="saveBtn"><span class="icon">📸</span>儲存</button>
+        </div>
+      </div>
+    </div>
 
-  <!-- MindAR ESM 載入：使用 importmap -->
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
-      "mindar-image-three": "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"
+    <!-- A-Frame + MindAR（預設透明背景，保留繪圖緩衝方便截圖） -->
+    <a-scene
+      id="arScene"
+      embedded
+      vr-mode-ui="enabled: false"
+      device-orientation-permission-ui="enabled: true"
+      renderer="colorManagement: true; physicallyCorrectLights: true; alpha: true; antialias: true; preserveDrawingBuffer: true"
+      background="transparent: true"
+      mindar-image="imageTargetSrc: https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.2/examples/assets/card/targets.mind; filterMinCF: 0.0001; filterBeta: 0.01;"
+      color-space="sRGB">
+      <a-assets timeout="120000">
+        <!-- 覆層圖片（可換你的圖） -->
+        <img id="overlayImage" crossorigin="anonymous"
+             src="https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1200&q=80&auto=format&fit=crop" />
+        <!-- 覆層影片（可換你的影片；為了行動自動播放，需 muted + playsinline） -->
+        <video id="overlayVideo" crossorigin="anonymous" muted playsinline loop preload="auto"
+               src="https://cdn.coverr.co/videos/coverr-colourful-ink-1036/1080p.mp4"></video>
+        <!-- 預留 3D 模型（需要時把 visible 設為 true 並指定你的 .glb/.gltf） -->
+        <!-- <a-asset-item id="modelAsset" src="your-model.glb"></a-asset-item> -->
+      </a-assets>
+
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+      <!-- 目標 0：當偵測到指定圖片時顯示覆層 -->
+      <a-entity mindar-image-target="targetIndex: 0">
+        <!-- 覆層圖片平面 -->
+        <a-plane src="#overlayImage"
+                 position="0 0 0"
+                 rotation="0 0 0"
+                 width="1"
+                 height="0.62"
+                 material="shader: flat; opacity: 0.98;">
+        </a-plane>
+
+        <!-- 覆層影片平面（稍微浮在上層 0.01） -->
+        <a-video src="#overlayVideo"
+                 position="0 -0.05 0.01"
+                 rotation="0 0 0"
+                 width="1"
+                 height="0.56"
+                 material="shader: flat;">
+        </a-video>
+
+        <!-- 預留 3D 模型插槽（預設關閉） -->
+        <a-entity id="modelSlot" visible="false"
+                  position="0 0 0.08" rotation="0 0 0"
+                  scale="0.3 0.3 0.3">
+          <!-- 啟用時加上 gltf-model="#modelAsset" -->
+        </a-entity>
+      </a-entity>
+    </a-scene>
+  </div>
+
+  <!-- 降級：純相機模式（AR 失敗或不支援時） -->
+  <div class="fallback" id="fallback">
+    <video id="fallbackVideo" autoplay playsinline muted></video>
+    <div class="toolbar">
+      <div class="bar top">
+        <div class="glass grp">
+          <div class="small">降級相機模式（仍可截圖）</div>
+        </div>
+        <div class="grp">
+          <button class="iconbtn red" id="exitBtn2"><span class="icon">✖</span>離開</button>
+        </div>
+      </div>
+      <div class="bar bottom">
+        <div class="grp"></div>
+        <div class="grp glass">
+          <button class="iconbtn green" id="saveBtn2"><span class="icon">📸</span>儲存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 小吐司 -->
+  <div class="toast" id="toast">已儲存到相簿（若未自動下載，將在新分頁開啟圖片，可長按儲存）</div>
+
+  <script>
+    // =========== 可調整設定（集中管理） ===========
+    const CONFIG = {
+      // MindAR 標靶（示範用）與測試圖 URL（用另一台裝置開）
+      targetMind: 'https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.2/examples/assets/card/targets.mind',
+      targetImageForUser: 'https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.2/examples/assets/card/card.png',
+      // 螢幕截圖檔名
+      screenshotName: 'ar-capture.png',
+      // 影片自動播放策略（建議 true；若你要聲音，請在互動後手動播放並移除 muted）
+      autoplayOverlayVideo: true,
+    };
+
+    // =========== 全域狀態 ===========
+    let wakeLock = null;
+    let preGrantedDeviceId = null;     // 前置權限流程選到的相機 ID（降級模式用）
+    let activeFallbackStream = null;   // 降級模式串流
+    let sceneCanvas = null;            // A-Frame WebGL 畫布
+    let stageActive = false;
+
+    const $ = s => document.querySelector(s);
+    const $$ = s => Array.from(document.querySelectorAll(s));
+
+    function toast(msg, dur = 2000){
+      const t = $('#toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(()=>t.classList.remove('show'), dur);
     }
-  }
-  </script>
 
-  <script type="module">
-    // app.js - ESM 版本
-    import * as THREE from 'three';
-    import { MindARThree } from 'mindar-image-three';
+    function setStatus(msg){
+      $('#statusText').textContent = msg;
+    }
 
-    class ARApp {
-      constructor() {
-        this.startScreen = document.getElementById('start-screen');
-        this.cameraScreen = document.getElementById('camera-screen');
-        this.permissionDialog = document.getElementById('permission-dialog');
-        this.loading = document.getElementById('loading');
-        this.errorTip = document.getElementById('error-tip');
-        this.errorText = document.getElementById('error-text');
-        this.camera = document.getElementById('camera');
-        this.arCanvas = document.getElementById('ar-canvas');
-        this.overlayContainer = document.getElementById('overlay-container');
-        this.overlayImage = document.getElementById('overlay-image');
-        this.overlayVideo = document.getElementById('overlay-video');
-        this.statusTip = document.getElementById('status-tip');
-        this.statusText = document.getElementById('status-text');
-        this.procCanvas = document.getElementById('proc-canvas');
-        this.captureCanvas = document.getElementById('capture-canvas');
-        this.btnStart = document.getElementById('btn-start');
-        this.btnGrant = document.getElementById('btn-grant');
-        this.btnDeny = document.getElementById('btn-deny');
-        this.btnCapture = document.getElementById('btn-capture');
-        this.btnSwitchContent = document.getElementById('btn-switch-content');
-        this.btnTorch = document.getElementById('btn-torch');
-        this.btnArjs = document.getElementById('btn-arjs');
-        this.btnSettings = document.getElementById('btn-settings');
-        this.scanLine = document.getElementById('scan-line');
+    function isSecureContextOk(){
+      return (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+    }
 
-        // 預設 tracker (替換為實際 base64 或 URL)
-        this.trackerImageUrl = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD... (替換為您的 tracker 圖像 base64)';
-        this.overlayImageSrc = this.overlayImage.src;
-        this.overlayVideoSrc = this.overlayVideo.querySelector('source').src;
+    function hasWebGL2(){
+      try{ const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('experimental-webgl2')); }
+      catch(e){ return false; }
+    }
 
-        this.startMindAR = null;
-        this.isVideoMode = false;
-        this.isTorchOn = false;
-        this.scene = null;
-        this.renderer = null;
-
-        // 雙重保險：載入後立即隱藏 + 超時
-        this.hideLoading();
-        setTimeout(() => this.hideLoading(), 5000);
-
-        this.initEventListeners();
-      }
-
-      initEventListeners() {
-        this.btnStart.addEventListener('click', () => this.requestPermissions());
-        this.btnGrant.addEventListener('click', () => this.initCamera());
-        this.btnDeny.addEventListener('click', () => this.showStartScreen());
-        this.btnCapture.addEventListener('click', () => this.captureScreenshot());
-        this.btnSwitchContent.addEventListener('click', () => this.toggleOverlayContent());
-        this.btnTorch.addEventListener('click', () => this.toggleTorch());
-        this.btnArjs.addEventListener('click', () => this.toggleARMode());
-        this.btnSettings.addEventListener('click', () => this.openSettings());
-
-        this.camera.addEventListener('error', (e) => {
-          console.error('Camera error:', e);
-          this.updateStatus('相機錯誤，請重試', 'error');
-          this.showError('相機初始化失敗');
-        });
-
-        document.addEventListener('visibilitychange', () => {
-          if (!document.hidden && this.cameraScreen.classList.contains('hidden')) {
-            this.requestPermissions();
-          }
-        });
-      }
-
-      hideLoading() {
-        this.loading.classList.add('hidden');
-        this.startScreen.classList.remove('hidden');
-      }
-
-      showError(message) {
-        this.errorText.textContent = message;
-        this.errorTip.classList.remove('hidden');
-        this.loading.classList.add('hidden');
-      }
-
-      async requestPermissions() {
-        if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-          this.showError('請使用 HTTPS 部署。');
-          return;
+    async function requestMotionPermissionIfNeeded(){
+      // iOS 13+ 需要互動手勢下主動要求
+      const any = window.DeviceMotionEvent || window.DeviceOrientationEvent;
+      const dm = window.DeviceMotionEvent;
+      const doevt = window.DeviceOrientationEvent;
+      try{
+        if (typeof dm?.requestPermission === 'function'){
+          await dm.requestPermission().catch(()=>{});
         }
-
-        try {
-          const devices = await navigator.mediaDevices.enumerateDevices();
-          const videoDevices = devices.filter(d => d.kind === 'videoinput');
-          if (videoDevices.length === 0) throw new Error('無可用相機');
-
-          const constraints = {
-            video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-            audio: false
-          };
-          const stream = await navigator.mediaDevices.getUserMedia(constraints);
-          stream.getTracks().forEach(track => track.stop());
-
-          this.showPermissionDialog();
-        } catch (err) {
-          console.error('權限錯誤:', err);
-          this.showPermissionDialog('無法存取相機，請檢查設定。');
+        if (typeof doevt?.requestPermission === 'function'){
+          await doevt.requestPermission().catch(()=>{});
         }
-      }
-
-      showPermissionDialog(message = '') {
-        if (message) {
-          document.querySelector('#permission-dialog .dialog-content p').textContent = message;
-        }
-        this.permissionDialog.classList.remove('hidden');
-        this.startScreen.classList.add('hidden');
-      }
-
-      showStartScreen() {
-        this.startScreen.classList.remove('hidden');
-        this.permissionDialog.classList.add('hidden');
-        this.cameraScreen.classList.add('hidden');
-        this.errorTip.classList.add('hidden');
-      }
-
-      async initCamera() {
-        try {
-          this.updateStatus('初始化相機...');
-          let constraints = { video: { facingMode: 'environment' } };
-          let stream;
-          try {
-            stream = await navigator.mediaDevices.getUserMedia(constraints);
-          } catch {
-            constraints = { video: true };
-            stream = await navigator.mediaDevices.getUserMedia(constraints);
-          }
-
-          this.camera.srcObject = stream;
-          await this.camera.play();
-
-          this.startMindAR = await this.initMindAR();
-          if (!this.startMindAR) throw new Error('MindAR 初始化失敗');
-
-          this.permissionDialog.classList.add('hidden');
-          this.cameraScreen.classList.remove('hidden');
-          this.startScreen.classList.add('hidden');
-          this.updateStatus('掃描特定圖片以顯示疊加...');
-          this.scanLine.style.display = 'block';
-
-        } catch (err) {
-          console.error('初始化錯誤:', err);
-          this.updateStatus('初始化失敗，請重試', 'error');
-          this.showStartScreen();
-          this.showError(err.message || '未知錯誤');
-        }
-      }
-
-      async initMindAR() {
-        // ESM 版本初始化
-        const start = new MindARThree({
-          container: document.getElementById('camera-container'),
-          imageTargetSrc: this.trackerImageUrl,
-          interpolationFactor: 0.075,
-          maxTrackLost: 1,
-          uiLoading: false,
-          uiScanning: '#status-tip',
-          filterMinCF: 0.001,
-          filterBeta: 0.01
-        });
-
-        const { renderer, scene, camera: arCamera } = start;
-        this.renderer = renderer;
-        this.scene = scene;
-
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        this.arCanvas.width = window.innerWidth;
-        this.arCanvas.height = window.innerHeight;
-        renderer.domElement = this.arCanvas;
-
-        // 添加簡單的疊加物件到場景（例如一個立方體，替換為您的圖像/影片邏輯）
-        const anchor = start.addAnchor(0);
-        const group = new THREE.Group();
-        anchor.group.add(group);
-
-        // 示例：添加一個彩色立方體作為疊加（未來可替換為載入圖像/影片）
-        const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-        const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-        const cube = new THREE.Mesh(geometry, material);
-        group.add(cube);
-
-        // 事件處理
-        start.addEventListener('targetFound', () => {
-          this.overlayContainer.classList.remove('hidden');
-          this.updateStatus('目標找到！');
-        });
-
-        start.addEventListener('targetLost', () => {
-          this.overlayContainer.classList.add('hidden');
-          this.updateStatus('尋找特定圖片...');
-        });
-
-        await start.start({ inputSrc: this.camera });
-        return start;
-      }
-
-      toggleOverlayContent() {
-        this.isVideoMode = !this.isVideoMode;
-        if (this.isVideoMode) {
-          this.overlayImage.classList.add('hidden');
-          this.overlayVideo.classList.remove('hidden');
-          this.overlayVideo.load();
-          this.overlayVideo.play().catch(e => console.warn('影片播放警告:', e));
-        } else {
-          this.overlayVideo.classList.add('hidden');
-          this.overlayImage.classList.remove('hidden');
-        }
-      }
-
-      async toggleTorch() {
-        try {
-          const track = this.camera.srcObject.getVideoTracks()[0];
-          if (!track) return;
-          await track.applyConstraints({ advanced: [{ torch: !this.isTorchOn }] });
-          this.isTorchOn = !this.isTorchOn;
-          this.btnTorch.style.opacity = this.isTorchOn ? '0.7' : '1';
-        } catch (e) {
-          console.warn('手電筒不支持:', e);
-        }
-      }
-
-      toggleARMode() {
-        if (this.startMindAR) {
-          this.startMindAR.stop();
-        }
-        this.updateStatus('切換 AR.js 模式...');
-        // 未來擴展
-      }
-
-      openSettings() {
-        alert('設定：\n- 調整亮度\n- 選擇追蹤圖片\n- 未來 3D 選項');
-      }
-
-      captureScreenshot() {
-        const ctx = this.captureCanvas.getContext('2d');
-        this.captureCanvas.width = this.camera.videoWidth;
-        this.captureCanvas.height = this.camera.videoHeight;
-        ctx.drawImage(this.camera, 0, 0);
-
-        if (!this.overlayContainer.classList.contains('hidden')) {
-          // 對於 ESM，疊加現在在 Three.js 場景中；這裡簡化為圖像繪製
-          const rect = this.overlayImage.getBoundingClientRect();
-          ctx.drawImage(this.overlayImage, rect.left, rect.top, rect.width, rect.height);
-        }
-
-        this.captureCanvas.toBlob((blob) => {
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `ar-screenshot-${Date.now()}.png`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        }, 'image/png');
-        this.updateStatus('截圖已保存！');
-      }
-
-      updateStatus(text, type = 'info') {
-        this.statusText.textContent = text;
-        this.statusTip.classList.remove('hidden');
-        this.statusTip.style.background = type === 'error' ? 'rgba(255, 0, 0, 0.7)' : 'rgba(0, 0, 0, 0.7)';
-        setTimeout(() => this.statusTip.classList.add('hidden'), 3000);
-      }
-
-      handleResize() {
-        if (this.startMindAR) {
-          this.startMindAR.resize();
-        }
-        if (this.renderer) {
-          this.renderer.setSize(window.innerWidth, window.innerHeight);
-        }
-        if (this.arCanvas) {
-          this.arCanvas.width = window.innerWidth;
-          this.arCanvas.height = window.innerHeight;
-        }
+      }catch(e){
+        // 可忽略；MindAR 對影像追蹤不一定需要
       }
     }
 
-    // 初始化
-    window.addEventListener('load', () => {
-      try {
-        window.arApp = new ARApp();
-        window.addEventListener('resize', () => window.arApp?.handleResize());
-      } catch (e) {
-        console.error('App 初始化錯誤:', e);
-        document.getElementById('loading').classList.add('hidden');
-        document.getElementById('error-tip').classList.remove('hidden');
+    async function requestWakeLock(){
+      try{
+        if ('wakeLock' in navigator){
+          wakeLock = await navigator.wakeLock.request('screen');
+          document.addEventListener('visibilitychange', async ()=>{
+            if (document.visibilityState === 'visible' && !wakeLock){
+              try{ wakeLock = await navigator.wakeLock.request('screen'); }catch{}
+            }
+          });
+          wakeLock.addEventListener?.('release', ()=>{ wakeLock = null; });
+        }
+      }catch(e){ /* 某些裝置不支援或使用者拒絕 */ }
+    }
+
+    async function preflightCamera(){
+      // 第一層保險：主動以 environment 嘗試，失敗再列舉裝置找後鏡頭
+      const tryGet = async (constraints) => {
+        const s = await navigator.mediaDevices.getUserMedia(constraints);
+        const track = s.getVideoTracks()[0];
+        const settings = track.getSettings ? track.getSettings() : {};
+        preGrantedDeviceId = settings.deviceId || null;
+        // 立即停止，讓 MindAR 後續接手；權限已授予，所以不再彈窗
+        s.getTracks().forEach(t=>t.stop());
+        return true;
+      };
+
+      // 先嘗試後鏡頭（ideal）
+      try{
+        await tryGet({video:{ facingMode: {ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} }, audio:false});
+        return true;
+      }catch(e){ /* 繼續列舉 */ }
+
+      // 列舉裝置，找名稱包含 back/rear 的相機
+      try{
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videos = devices.filter(d=>d.kind==='videoinput');
+        let back = videos.find(v => /back|rear|environment/i.test(v.label));
+        if (!back && videos.length) back = videos[videos.length-1]; // 退而求其次
+        if (back){
+          await tryGet({video:{ deviceId:{exact: back.deviceId}, width:{ideal:1280}, height:{ideal:720} }, audio:false});
+          return true;
+        }
+      }catch(e){ /* 繼續下一步 */ }
+
+      // 最後再試普通相機
+      try{
+        await tryGet({video:true, audio:false});
+        return true;
+      }catch(e){
+        throw new Error('無法取得相機權限：' + (e?.message || e));
       }
+    }
+
+    function getMindARCameraVideo(){
+      // 嘗試從 MindAR 系統取，否則掃描頁面上的 video 元素（srcObject 為 MediaStream 且 muted）
+      const sceneEl = $('#arScene');
+      let fromSystem = null;
+      try{
+        const sys = sceneEl.systems && sceneEl.systems['mindar-image-system'];
+        if (sys && sys.video) fromSystem = sys.video;
+      }catch(e){}
+      if (fromSystem) return fromSystem;
+
+      const candidates = $$('video').filter(v => v.srcObject instanceof MediaStream);
+      // 過濾掉 overlayVideo（它不是 MediaStream）
+      return candidates[0] || null;
+    }
+
+    function getSceneCanvas(){
+      const sceneEl = $('#arScene');
+      return sceneEl?.canvas || null;
+    }
+
+    async function startAR(){
+      // 顯示場景
+      $('#home').style.display = 'none';
+      $('#stage').classList.add('active');
+      stageActive = true;
+      setStatus('初始化中…');
+
+      // 第二層保險：若 WebGL2 缺失，直接降級
+      if (!hasWebGL2()){
+        setStatus('此裝置不支援 WebGL2，使用降級相機模式');
+        await startFallbackCamera();
+        return;
+      }
+
+      const sceneEl = $('#arScene');
+
+      // 等待 A-Frame 場景完成建立（才拿得到 canvas）
+      if (!sceneEl.hasLoaded){
+        await new Promise(res => sceneEl.addEventListener('loaded', res, {once:true}));
+      }
+      sceneCanvas = getSceneCanvas();
+
+      // MindAR 事件監聽
+      sceneEl.addEventListener('arReady', ()=>{
+        setStatus('AR 就緒，對準測試圖就會出現覆層');
+        // 自動播放覆層影片（行動端需在使用者互動後執行）
+        if (CONFIG.autoplayOverlayVideo){
+          const v = $('#overlayVideo');
+          v?.play().catch(()=>{ /* 若被瀏覽器阻擋，可改為顯示播放按鈕 */ });
+        }
+      });
+      sceneEl.addEventListener('arError', async (e)=>{
+        console.warn('MindAR 啟動失敗：', e);
+        toast('AR 啟動失敗，切換到降級相機模式');
+        await startFallbackCamera();
+      });
+
+      setStatus('相機啟動中…');
+
+      // MindAR 預設會自行呼叫 getUserMedia（我們前面已授權，這裡通常不再彈窗）
+      // 額外保險：若一段時間仍沒 arReady，就啟動降級
+      const fallbackTimer = setTimeout(async ()=>{
+        if (!stageActive) return;
+        setStatus('AR 逾時，切換降級相機模式');
+        await startFallbackCamera();
+      }, 12000);
+
+      // 若成功 arReady，清除逾時計時
+      sceneEl.addEventListener('arReady', ()=>clearTimeout(fallbackTimer), {once:true});
+    }
+
+    async function startFallbackCamera(){
+      $('#stage').classList.remove('active');
+      $('#fallback').classList.add('active');
+      stageActive = false;
+
+      try{
+        // 盡量用之前選到的後鏡頭
+        const constraints = preGrantedDeviceId
+          ? {video: {deviceId:{exact: preGrantedDeviceId}, width:{ideal:1280}, height:{ideal:720}}, audio:false}
+          : {video: {facingMode:{ideal:'environment'}}, audio:false};
+        activeFallbackStream = await navigator.mediaDevices.getUserMedia(constraints);
+        $('#fallbackVideo').srcObject = activeFallbackStream;
+      }catch(e){
+        toast('相機啟動失敗：' + (e?.message||e));
+      }
+    }
+
+    function stopFallbackCamera(){
+      try{
+        if (activeFallbackStream){
+          activeFallbackStream.getTracks().forEach(t=>t.stop());
+          activeFallbackStream = null;
+        }
+      }catch(e){}
+      $('#fallback').classList.remove('active');
+    }
+
+    function dataUrlDownload(dataUrl, filename){
+      const a = document.createElement('a');
+      a.href = dataUrl; a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(()=>a.remove(), 0);
+    }
+
+    function openInNewTab(dataUrl){
+      // iOS 可能不支援 download，退而求其次
+      const w = window.open();
+      if (w){ w.document.title = 'Screenshot'; w.document.body.style.margin='0'; 
+        const img = new Image(); img.src = dataUrl; img.style.width='100%'; img.style.height='auto';
+        w.document.body.appendChild(img);
+      }else{
+        // 最後手段：直接換當前頁
+        location.href = dataUrl;
+      }
+    }
+
+    function getCaptureSize(){
+      // 優先用相機影片解析度，其次用 canvas，其次視窗
+      const v = getMindARCameraVideo() || $('#fallbackVideo');
+      if (v && v.videoWidth && v.videoHeight){
+        return {w: v.videoWidth, h: v.videoHeight, videoEl: v};
+      }
+      if (sceneCanvas){
+        return {w: sceneCanvas.width, h: sceneCanvas.height, videoEl: getMindARCameraVideo()};
+      }
+      return {w: window.innerWidth, h: window.innerHeight, videoEl: getMindARCameraVideo()};
+    }
+
+    function captureComposite(arMode = true){
+      // 合成順序：相機 → WebGL（A-Frame）→（你也可在此加上 UI/水印）
+      const {w, h, videoEl} = getCaptureSize();
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+
+      if (videoEl){
+        try{ ctx.drawImage(videoEl, 0, 0, w, h); }catch(e){}
+      }
+      if (arMode && sceneCanvas){
+        try{ ctx.drawImage(sceneCanvas, 0, 0, w, h); }catch(e){}
+      }
+
+      try{
+        return canvas.toDataURL('image/png');
+      }catch(e){
+        console.warn('toDataURL 失敗，嘗試備援：', e);
+        // 備援：僅輸出 WebGL 畫面或僅影片畫面
+        try{
+          if (arMode && sceneCanvas) return sceneCanvas.toDataURL('image/png');
+        }catch(e2){}
+        try{
+          if (videoEl){
+            const canvas2 = document.createElement('canvas');
+            canvas2.width = w; canvas2.height = h;
+            canvas2.getContext('2d').drawImage(videoEl, 0, 0, w, h);
+            return canvas2.toDataURL('image/png');
+          }
+        }catch(e3){}
+        return null;
+      }
+    }
+
+    function saveScreenshot(arMode = true){
+      const url = captureComposite(arMode);
+      if (!url){ toast('截圖失敗'); return; }
+      try{
+        dataUrlDownload(url, CONFIG.screenshotName);
+        toast('已儲存');
+      }catch(e){
+        openInNewTab(url);
+        toast('已於新分頁開啟圖片，可長按儲存');
+      }
+    }
+
+    async function enterFlow(){
+      // 入口總控：兩重保險 + 權限請求（以使用者點擊為手勢）
+      if (!isSecureContextOk()){
+        alert('需要 HTTPS（或同機 localhost）才能啟用相機。請部署到 HTTPS 或使用 ngrok/Netlify/GitHub Pages。');
+        return;
+      }
+      setStatus('檢查權限…');
+      try{
+        await requestMotionPermissionIfNeeded(); // iOS 動作/方向（可選）
+        await requestWakeLock();                 // 常亮（可選）
+        await preflightCamera();                 // 第一層保險：先拿到相機授權
+      }catch(e){
+        alert((e && e.message) ? e.message : String(e));
+        return;
+      }
+      await startAR();                           // 正式進入 AR（第二層保險：啟動失敗自動降級）
+      // 全螢幕（可選）
+      try{
+        const el = document.documentElement;
+        if (el.requestFullscreen) el.requestFullscreen({navigationUI: 'hide'});
+      }catch(e){}
+    }
+
+    function exitAll(){
+      // 統一退出：關閉 AR 與降級相機、釋放資源
+      try{
+        const sceneEl = $('#arScene');
+        const sys = sceneEl.systems && sceneEl.systems['mindar-image-system'];
+        // 嘗試停止 MindAR
+        if (sys && typeof sys.stop === 'function') sys.stop();
+        // 額外嘗試（不同版本可能掛在 component）
+        if (sceneEl.components && sceneEl.components['mindar-image'] && typeof sceneEl.components['mindar-image'].stop === 'function'){
+          sceneEl.components['mindar-image'].stop();
+        }
+      }catch(e){}
+      stopFallbackCamera();
+      if (wakeLock){ try{ wakeLock.release?.(); }catch(e){} wakeLock = null; }
+      $('#stage').classList.remove('active');
+      $('#fallback').classList.remove('active');
+      $('#home').style.display = '';
+      stageActive = false;
+      setStatus('就緒');
+      try{ document.exitFullscreen?.(); }catch(e){}
+    }
+
+    // 綁定 UI
+    $('#enterBtn').addEventListener('click', enterFlow);
+    $('#exitBtn').addEventListener('click', exitAll);
+    $('#exitBtn2').addEventListener('click', exitAll);
+    $('#saveBtn').addEventListener('click', ()=>saveScreenshot(true));
+    $('#saveBtn2').addEventListener('click', ()=>saveScreenshot(false));
+    $('#helpBtn').addEventListener('click', ()=>{
+      alert([
+        '使用方式：',
+        '1) 用另一台裝置打開示範圖像（card.png）',
+        '2) 點「進入 AR」，允許相機權限',
+        '3) 對準圖像，會出現覆層圖片與影片',
+        '4) 點「儲存」可把畫面存成圖片',
+        '',
+        '小提示：若 AR 無法啟動，系統會自動切到「降級相機模式」，仍然可以截圖。'
+      ].join('\n'));
+    });
+    $('#howBtn').addEventListener('click', ()=>{
+      alert([
+        '部署指引（簡版）：',
+        '• 務必使用 HTTPS 網址（或 localhost）。',
+        '• 推薦免費選項：Netlify / GitHub Pages / Cloudflare Pages。',
+        '• 直接把這個 index.html 上傳即可（單檔版）。',
+        '• iOS Safari 若要全螢幕沉浸體驗，可加入主畫面（PWA 模式效果更佳）。'
+      ].join('\n'));
     });
 
-    // 全域錯誤捕捉
-    window.addEventListener('error', (e) => {
-      console.error('全域錯誤:', e.error);
-      document.getElementById('loading').classList.add('hidden');
-      document.getElementById('error-text').textContent = '發生錯誤，請重新載入。';
-      document.getElementById('error-tip').classList.remove('hidden');
-    });
+    // 阻止雙擊縮放
+    document.addEventListener('touchend', (e)=>{
+      const now = Date.now(); if (!window.__lastTouch) window.__lastTouch = 0;
+      if (now - window.__lastTouch < 300) e.preventDefault();
+      window.__lastTouch = now;
+    }, {passive:false});
   </script>
 </body>
 </html>
