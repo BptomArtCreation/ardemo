@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ARScan Pro - 專業AR圖像追蹤</title>
-    <!-- Google Analytics Placeholder (商業分析) -->
+    <!-- Google Analytics Placeholder -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
@@ -19,7 +19,7 @@
     <!-- html2canvas 用於畫面捕捉 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
-        /* 商業級現代UI：漸變、暗黑支援、動畫 */
+        /* 商業級現代UI */
         @media (prefers-color-scheme: dark) { body { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); } }
         body {
             margin: 0; padding: 0;
@@ -29,7 +29,7 @@
             height: 100vh; color: white; overflow: hidden;
             transition: background 0.3s ease;
         }
-        #logo { font-size: 1.5em; margin-bottom: 1em; } /* 品牌logo空間 */
+        #logo { font-size: 1.5em; margin-bottom: 1em; }
         #intro { text-align: center; z-index: 100; }
         #intro h1 { font-size: 2em; margin-bottom: 1em; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
         #status { font-size: 1em; margin-top: 10px; opacity: 0.8; }
@@ -43,7 +43,7 @@
         button:disabled { opacity: 0.5; cursor: not-allowed; }
         #ar-container { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
         #save-btn, #share-btn { position: fixed; top: 20px; z-index: 50; right: 20px; }
-        #share-btn { top: 80px; background: #4CAF50; } /* 分享按鈕 */
+        #share-btn { top: 80px; background: #4CAF50; }
         #error-msg, #permission-failed { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: rgba(255,255,255,0.9); padding: 20px; border-radius: 10px; display: none;
             text-align: center; z-index: 200; color: black; max-width: 80%; }
@@ -58,7 +58,7 @@
 </head>
 <body>
     <!-- 品牌介紹 -->
-    <div id="logo">ARScan Pro</div> <!-- 您的品牌logo -->
+    <div id="logo">ARScan Pro</div>
     <div id="intro">
         <h1>歡迎使用ARScan Pro</h1>
         <p>專業AR圖像追蹤：掃描指定圖像，解鎖互動體驗</p>
@@ -84,16 +84,15 @@
     <div id="ar-container">
         <a-scene 
             id="ar-scene"
-            mindar-image="imageTargetSrc: https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/image-tracking/assets/card-example/card.mind; autoStart: false; uiLoading: enabled; uiScanning: none;"
+            mindar-image="imageTargetSrc: https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/image-tracking/assets/card-example/card.mind; autoStart: false; uiScanning: none;"  <!-- 移除uiLoading，避免干擾 -->
             color-space="sRGB" 
             renderer="colorManagement: true, physicallyCorrectLights" 
             vr-mode-ui="enabled: false" 
-            embedded> <!-- 禁用自動權限UI -->
+            embedded>
             
             <a-assets>
                 <img id="card-img" src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/image-tracking/assets/card-example/card.png" />
                 <a-asset-item id="avatar-model" src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/image-tracking/assets/card-example/softmind/scene.gltf"></a-asset-item>
-                <!-- 未來：添加影片 <video id="ar-video" src="your-video.mp4" loop autoplay muted></video> -->
             </a-assets>
 
             <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
@@ -107,7 +106,6 @@
                     src="#avatar-model"
                     animation="property: position; to: 0 0.1 0.1; dur: 1000; easing: easeInOutQuad; loop: true; dir: alternate">
                 </a-gltf-model>
-                <!-- 商業擴展：更多AR內容 -->
             </a-entity>
         </a-scene>
         <button id="save-btn">儲存畫面 (Save)</button>
@@ -123,7 +121,7 @@
 
     <script>
         // 商業版全局變數
-        let arSystem, cameraStream; // 相機stream注入
+        let arSystem, cameraStream;
         let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
         const isHTTPS = location.protocol === 'https:' || location.hostname === 'localhost';
 
@@ -148,8 +146,8 @@
                 cameraStream = await navigator.mediaDevices.getUserMedia({
                     video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
                 });
-                console.log('相機stream獲取成功'); // 商業日誌
-                gtag('event', 'camera_granted'); // 分析事件
+                console.log('相機stream獲取成功'); // 日誌
+                gtag('event', 'camera_granted');
                 return cameraStream;
             } catch (err) {
                 console.error('相機錯誤:', err);
@@ -161,7 +159,7 @@
         async function requestIOSPermissions() {
             if (!isIOS) return 'granted';
             status.textContent = '請求運動與方向權限... (系統彈窗請點「允許」)';
-            await new Promise(resolve => setTimeout(resolve, 100)); // 渲染延遲
+            await new Promise(resolve => setTimeout(resolve, 100));
 
             let motionGranted = 'granted';
             if (typeof DeviceMotionEvent.requestPermission === 'function') {
@@ -181,58 +179,78 @@
             }
         }
 
-        // 啟動AR（商業邏輯）
+        // 啟動AR（修復版：強制注入video feed）
         async function startAR() {
             try {
-                // 步驟1: 相機stream
                 const stream = await requestCameraStream();
-                // 步驟2: iOS權限
                 await requestIOSPermissions();
 
-                // 顯示AR，隱藏介紹
                 arContainer.style.display = 'block';
                 document.getElementById('intro').style.display = 'none';
                 setTimeout(() => loadingOverlay.style.display = 'flex', 200);
 
-                // A-Frame載入
                 arScene.addEventListener('loaded', () => {
                     arSystem = arScene.systems['mindar-image-system'];
-                    // 注入stream到MindAR（確保即時顯示）
-                    if (arSystem && stream) {
-                        arSystem.renderer.domElement.srcObject = stream; // 手動注入video feed
+
+                    // 修復：強制注入stream到MindAR video元素，確保feed顯示
+                    if (arSystem && arSystem.video) {
+                        arSystem.video.srcObject = stream;
+                        arSystem.video.muted = true; // iOS必要
+                        arSystem.video.playsInline = true; // iOS自動播放
+                        arSystem.video.play().catch(console.error); // 觸發播放
+                        console.log('Stream注入video成功');
+                        gtag('event', 'feed_injected');
+                    } else {
+                        console.warn('arSystem.video未找到，延遲重試');
+                        setTimeout(() => {
+                            if (arSystem && arSystem.video) {
+                                arSystem.video.srcObject = stream;
+                                arSystem.video.muted = true;
+                                arSystem.video.playsInline = true;
+                                arSystem.video.play().catch(console.error);
+                            }
+                        }, 500);
                     }
 
-                    // 第二重保險：事件監聽
+                    // 第二重保險：事件監聽 + 超時強制
                     arScene.addEventListener('arError', (e) => {
                         console.error('AR錯誤:', e.detail);
                         loadingOverlay.style.display = 'none';
-                        errorText.textContent = 'AR失敗：' + (e.detail || '重試或切Chrome') + '。日誌已記錄。';
+                        errorText.textContent = 'AR失敗：' + (e.detail || 'camera feed問題，重試') + '。檢查console。';
                         errorMsg.style.display = 'block';
                         gtag('event', 'ar_error', { error: e.detail });
                         if (arSystem) arSystem.stop();
                         if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
                     });
 
+                    arScene.addEventListener('camera-error', (e) => { // 額外camera錯誤
+                        console.error('Camera錯誤:', e.detail);
+                        errorText.textContent += ' Camera錯誤：' + e.detail;
+                    });
+
                     arScene.addEventListener('arReady', () => {
-                        console.log('AR就緒！鏡頭feed顯示');
+                        console.log('AR就緒！Feed顯示');
                         loadingOverlay.style.display = 'none';
                         status.textContent = 'AR啟動，掃描圖像... (Scan image to activate)';
                         gtag('event', 'ar_ready');
+                        gtag('event', 'feed_displayed');
                         clearTimeout(startTimeout);
                     });
 
-                    // 超時重試（3秒）
                     startTimeout = setTimeout(() => {
                         if (loadingOverlay.style.display !== 'none') {
-                            console.warn('超時，重試AR...');
+                            console.warn('初始化超時，強制重啟feed...');
+                            if (arSystem && arSystem.video) {
+                                arSystem.video.srcObject = null;
+                                setTimeout(() => arSystem.video.srcObject = stream, 100);
+                            }
                             arSystem.start();
                         }
-                    }, 3000);
+                    }, 5000);
 
-                    arSystem.start(); // 啟動，stream已注入
+                    arSystem.start();
                 });
 
-                // 清理：頁面卸載停止stream
                 window.addEventListener('beforeunload', () => {
                     if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
                 });
@@ -276,7 +294,7 @@
                 });
         });
 
-        // 分享（商業功能）
+        // 分享
         shareBtn.addEventListener('click', async () => {
             if (navigator.share) {
                 await navigator.share({ title: 'ARScan Pro', url: location.href });
