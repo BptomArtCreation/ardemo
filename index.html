@@ -157,8 +157,6 @@
 
     #camera-screen {
       background: black;
-      display: flex;
-      flex-direction: column;
       justify-content: flex-start;
     }
 
@@ -166,6 +164,7 @@
       position: relative;
       flex: 1;
       width: 100%;
+      height: calc(100vh - 140px);
       overflow: hidden;
       display: flex;
       align-items: center;
@@ -460,6 +459,27 @@
       <div class="spinner"></div>
     </div>
 
+    <section id="start-screen" class="screen hidden">
+      <div class="branding">
+        <h1>AR Overlay</h1>
+        <p>點擊下方按鈕開啟後置鏡頭</p>
+      </div>
+      <button id="btn-start" class="btn btn-primary big">
+        <span class="icon">📷</span>
+        啟動相機
+      </button>
+      <div class="tip">不會上傳影像，僅在本機處理</div>
+    </section>
+
+    <div id="permission-dialog" class="hidden">
+      <div class="dialog-content">
+        <h2>需要相機權限</h2>
+        <p>為了啟動 AR 體驗，我們需要存取您的後置相機。您的隱私將受到保護，所有處理均在本裝置進行。</p>
+        <button id="btn-grant" class="btn btn-primary">授予權限</button>
+        <button id="btn-deny" class="btn btn-outline">稍後</button>
+      </div>
+    </div>
+
     <section id="camera-screen" class="screen hidden">
       <div id="camera-container">
         <video id="camera" playsinline autoplay muted></video>
@@ -524,6 +544,7 @@
 
     class ARApp {
       constructor() {
+        this.startScreen = document.getElementById('start-screen');
         this.cameraScreen = document.getElementById('camera-screen');
         this.permissionDialog = document.getElementById('permission-dialog');
         this.loading = document.getElementById('loading');
@@ -538,6 +559,7 @@
         this.scanTip = document.getElementById('scan-tip');
         this.procCanvas = document.getElementById('proc-canvas');
         this.captureCanvas = document.getElementById('capture-canvas');
+        this.btnStart = document.getElementById('btn-start');
         this.btnGrant = document.getElementById('btn-grant');
         this.btnDeny = document.getElementById('btn-deny');
         this.btnCapture = document.getElementById('btn-capture');
@@ -570,6 +592,7 @@
       }
 
       initEventListeners() {
+        this.btnStart.addEventListener('click', () => this.requestPermissions());
         this.btnGrant.addEventListener('click', () => this.initCamera());
         this.btnDeny.addEventListener('click', () => this.showStartScreen());
         this.btnCapture.addEventListener('click', () => this.captureScreenshot());
@@ -597,7 +620,7 @@
 
       hideLoading() {
         this.loading.classList.add('hidden');
-        this.showStartScreen();
+        this.startScreen.classList.remove('hidden');
       }
 
       showError(message) {
@@ -629,12 +652,13 @@
           document.querySelector('#permission-dialog .dialog-content p').textContent = message;
         }
         this.permissionDialog.classList.remove('hidden');
-        this.cameraScreen.classList.add('hidden');
+        this.startScreen.classList.add('hidden');
       }
 
       showStartScreen() {
-        this.cameraScreen.classList.add('hidden');
+        this.startScreen.classList.remove('hidden');
         this.permissionDialog.classList.add('hidden');
+        this.cameraScreen.classList.add('hidden');
         this.errorTip.classList.add('hidden');
       }
 
@@ -659,6 +683,7 @@
 
           this.permissionDialog.classList.add('hidden');
           this.cameraScreen.classList.remove('hidden');
+          this.startScreen.classList.add('hidden');
 
           this.scanTip.classList.remove('hidden');
           setTimeout(() => this.scanTip.classList.add('show'), 100);
@@ -855,11 +880,16 @@
         ctx.drawImage(this.camera, 0, 0);
 
         if (this.renderer && this.isTargetDetected) {
-          // 修復：直接畫 Three.js 的 canvas（包含 AR 疊加）到 capture canvas
-          const arCanvas = this.renderer.domElement;
-          if (arCanvas) {
-            ctx.drawImage(arCanvas, 0, 0, this.captureCanvas.width, this.captureCanvas.height);
-          }
+          const gl = this.renderer.getContext();
+          const pixels = new Uint8Array(this.captureCanvas.width * this.captureCanvas.height * 4);
+          gl.readPixels(0, 0, this.captureCanvas.width, this.captureCanvas.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+          const imageData = new ImageData(new Uint8ClampedArray(pixels.buffer), this.captureCanvas.width, this.captureCanvas.height);
+          ctx.putImageData(imageData, 0, 0);
+        }
+
+        if (!this.overlayContainer.classList.contains('hidden')) {
+          const rect = this.overlayVideo.getBoundingClientRect();
+          ctx.drawImage(this.overlayVideo, rect.left, rect.top, rect.width, rect.height);
         }
 
         this.captureCanvas.toBlob((blob) => {
