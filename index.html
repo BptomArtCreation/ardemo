@@ -549,6 +549,14 @@
           this.showError('相機初始化失敗');
         });
 
+        // 新增：驗證 video 狀態的監聽器（除錯用）
+        this.camera.addEventListener('loadedmetadata', () => {
+          console.log('Video metadata loaded, dimensions:', this.camera.videoWidth, 'x', this.camera.videoHeight);
+        });
+        this.camera.addEventListener('play', () => {
+          console.log('Video started playing');
+        });
+
         document.addEventListener('visibilitychange', () => {
           if (!document.hidden && this.cameraScreen.classList.contains('hidden')) {
             this.requestPermissions();
@@ -660,6 +668,11 @@
         this.arCanvas.width = window.innerWidth;
         this.arCanvas.height = window.innerHeight;
         renderer.domElement = this.arCanvas;
+
+        // 新增：將 video feed 作為 texture 設定為 scene background，讓 AR canvas 顯示相機影像
+        const videoTexture = new THREE.VideoTexture(this.camera);
+        videoTexture.minFilter = THREE.LinearFilter;  // 避免紋理模糊（可選，優化畫質）
+        scene.background = videoTexture;
 
         // 添加錨點和示例物件（修改範例：紅色球體 + Y 軸彈出）
         this.anchor = start.addAnchor(0);
