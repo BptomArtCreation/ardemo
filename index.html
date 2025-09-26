@@ -110,7 +110,7 @@
       appearance: none;
       -webkit-appearance: none;
       -webkit-tap-highlight-color: transparent;
-      pointer-events: auto; /* 新增：確保按鈕可點擊 */
+      pointer-events: auto;
     }
 
     .btn-primary {
@@ -311,8 +311,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 1000; /* 提高 z-index 確保頂層 */
-      pointer-events: auto; /* 新增：確保可互動 */
+      z-index: 1000;
+      pointer-events: auto;
     }
 
     #permission-dialog.hidden {
@@ -326,7 +326,7 @@
       text-align: center;
       max-width: 90%;
       box-shadow: var(--shadow);
-      pointer-events: auto; /* 新增：確保內容可點擊 */
+      pointer-events: auto;
     }
 
     .dialog-content h2 {
@@ -424,7 +424,6 @@
     <section id="camera-screen" class="screen hidden">
       <div id="camera-container">
         <video id="camera" playsinline autoplay muted></video>
-        <canvas id="ar-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></canvas>
 
         <div id="overlay-container" aria-hidden="true" class="hidden">
           <img id="overlay-image" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMDBkNGZmIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7vv70g5Lit5b+DPC90ZXh0Pjwvc3ZnPg==" alt="預設疊加圖片" />
@@ -490,7 +489,6 @@
         this.errorTip = document.getElementById('error-tip');
         this.errorText = document.getElementById('error-text');
         this.camera = document.getElementById('camera');
-        this.arCanvas = document.getElementById('ar-canvas');
         this.overlayContainer = document.getElementById('overlay-container');
         this.overlayImage = document.getElementById('overlay-image');
         this.overlayVideo = document.getElementById('overlay-video');
@@ -579,7 +577,6 @@
           const videoDevices = devices.filter(d => d.kind === 'videoinput');
           if (videoDevices.length === 0) throw new Error('無可用相機');
 
-          // 修改：移除 getUserMedia 測試，只顯示對話框，避免重複提示
           this.showPermissionDialog();
         } catch (err) {
           console.error('權限錯誤:', err);
@@ -605,7 +602,6 @@
       async initCamera() {
         try {
           this.updateStatus('初始化相機...');
-          // 修改：權限檢查移到這裡，只調用一次 getUserMedia
           let constraints = { 
             video: { facingMode: 'environment' }, 
             audio: false 
@@ -622,14 +618,21 @@
           this.camera.muted = true;
           await this.camera.play();
 
-          this.startMindAR = await this.initMindAR();
-          if (!this.startMindAR) throw new Error('MindAR 初始化失敗');
-
+          // 新增：立即切換到 camera-screen，確保畫面跳轉
           this.permissionDialog.classList.add('hidden');
           this.cameraScreen.classList.remove('hidden');
           this.startScreen.classList.add('hidden');
-          this.updateStatus('掃描特定圖片以顯示疊加...');
-          this.scanLine.style.display = 'block';
+
+          // 新增：如果 MindAR 初始化失敗，仍顯示 video feed
+          try {
+            this.startMindAR = await this.initMindAR();
+            this.updateStatus('掃描特定圖片以顯示疊加...');
+            this.scanLine.style.display = 'block';
+          } catch (mindarErr) {
+            console.error('MindAR 初始化失敗:', mindarErr);
+            this.updateStatus('AR 載入失敗，但相機已啟動', 'error');
+            // 保持 camera-screen 顯示 video
+          }
 
         } catch (err) {
           console.error('初始化錯誤:', err);
@@ -655,16 +658,9 @@
         this.renderer = renderer;
         this.scene = scene;
 
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
+        // 修改：移除手動 domElement 和 size 設定，讓 MindAR 自動處理 canvas 和渲染
         renderer.powerPreference = 'high-performance';
         renderer.antialias = true;
-        this.arCanvas.width = window.innerWidth;
-        this.arCanvas.height = window.innerHeight;
-        renderer.domElement = this.arCanvas;
-
-        // 修改：移除 VideoTexture 設定，讓 MindAR 內部處理 camera feed 顯示
-        // MindAR 會自動將 camera 作為 background 渲染
 
         this.anchor = start.addAnchor(0);
         const group = new THREE.Group();
@@ -802,13 +798,6 @@
       handleResize() {
         if (this.startMindAR) {
           this.startMindAR.resize();
-        }
-        if (this.renderer) {
-          this.renderer.setSize(window.innerWidth, window.innerHeight);
-        }
-        if (this.arCanvas) {
-          this.arCanvas.width = window.innerWidth;
-          this.arCanvas.height = window.innerHeight;
         }
       }
     }
