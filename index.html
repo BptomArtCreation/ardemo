@@ -164,11 +164,12 @@
       position: relative;
       flex: 1;
       width: 100%;
-      height: 100vh;
+      height: calc(100vh - 140px);  /* 新增：扣除 topbar + bottombar 高度，避免遮蓋 */
       overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: center;
+      z-index: 1;  /* 降低 z-index，讓 bars 浮在上層 */
     }
 
     #camera {
@@ -187,6 +188,7 @@
       width: 100%;
       height: 100%;
       pointer-events: none;
+      z-index: 5;  /* 疊加層級：video < overlay < bars */
     }
 
     #overlay-image,
@@ -216,6 +218,7 @@
       background: linear-gradient(90deg, transparent, var(--accent), transparent);
       animation: scan 2s linear infinite;
       opacity: 0.5;
+      z-index: 5;
     }
 
     @keyframes scan {
@@ -235,7 +238,7 @@
       padding: 1rem;
       background: rgba(0, 0, 0, 0.5);
       backdrop-filter: blur(10px);
-      z-index: 20;
+      z-index: 30;  /* 提高 z-index，確保按鈕可見 */
       border-bottom: 1px solid var(--border);
     }
 
@@ -251,7 +254,7 @@
       padding: 1rem;
       background: rgba(0, 0, 0, 0.5);
       backdrop-filter: blur(10px);
-      z-index: 20;
+      z-index: 30;  /* 提高 z-index，確保按鈕可見 */
       border-top: 1px solid var(--border);
     }
 
@@ -275,7 +278,22 @@
       border-radius: var(--radius);
       font-size: 0.875rem;
       color: var(--text-secondary);
-      z-index: 15;
+      z-index: 25;  /* 高於 container，低於 bars */
+    }
+
+    .scan-tip {  /* 新增：掃描提示樣式 */
+      position: absolute;
+      bottom: 8rem;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 1rem 2rem;
+      background: rgba(0, 0, 0, 0.8);
+      border-radius: var(--radius);
+      font-size: 1rem;
+      color: var(--text-primary);
+      text-align: center;
+      z-index: 25;
+      border: 1px solid var(--accent);
     }
 
     .dot {
@@ -447,6 +465,10 @@
         <span id="status-text">準備中...</span>
       </div>
 
+      <div id="scan-tip" class="scan-tip hidden">  <!-- 新增：掃描提示元素 -->
+        <p>請將特定圖片（目標影像）置於鏡頭前方，保持穩定並有良好光線。掃描中...</p>
+      </div>
+
       <footer class="bottombar">
         <div class="bar">
           <button id="btn-capture" class="btn btn-primary">
@@ -494,6 +516,7 @@
         this.overlayVideo = document.getElementById('overlay-video');
         this.statusTip = document.getElementById('status-tip');
         this.statusText = document.getElementById('status-text');
+        this.scanTip = document.getElementById('scan-tip');  // 新增：掃描提示引用
         this.procCanvas = document.getElementById('proc-canvas');
         this.captureCanvas = document.getElementById('capture-canvas');
         this.btnStart = document.getElementById('btn-start');
@@ -618,20 +641,23 @@
           this.camera.muted = true;
           await this.camera.play();
 
-          // 新增：立即切換到 camera-screen，確保畫面跳轉
+          // 立即切換到 camera-screen
           this.permissionDialog.classList.add('hidden');
           this.cameraScreen.classList.remove('hidden');
           this.startScreen.classList.add('hidden');
 
-          // 新增：如果 MindAR 初始化失敗，仍顯示 video feed
+          // 顯示掃描提示
+          this.scanTip.classList.remove('hidden');
+
+          // MindAR 初始化（失敗不影響畫面顯示）
           try {
             this.startMindAR = await this.initMindAR();
             this.updateStatus('掃描特定圖片以顯示疊加...');
             this.scanLine.style.display = 'block';
           } catch (mindarErr) {
             console.error('MindAR 初始化失敗:', mindarErr);
-            this.updateStatus('AR 載入失敗，但相機已啟動', 'error');
-            // 保持 camera-screen 顯示 video
+            this.updateStatus('AR 載入失敗，但相機已啟動。請檢查 .mind 檔案。', 'error');
+            // 保持提示顯示
           }
 
         } catch (err) {
@@ -658,7 +684,6 @@
         this.renderer = renderer;
         this.scene = scene;
 
-        // 修改：移除手動 domElement 和 size 設定，讓 MindAR 自動處理 canvas 和渲染
         renderer.powerPreference = 'high-performance';
         renderer.antialias = true;
 
