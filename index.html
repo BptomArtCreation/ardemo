@@ -28,6 +28,12 @@
       box-sizing: border-box;
     }
 
+    /* 新增：全局重置，確保跨瀏覽器一致（normalize 風格） */
+    html {
+      line-height: 1.15;
+      -webkit-text-size-adjust: 100%;
+    }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: var(--bg-primary);
@@ -36,6 +42,8 @@
       touch-action: manipulation;
       -webkit-user-select: none;
       user-select: none;
+      /* 新增：移除 iOS 觸摸高亮 */
+      -webkit-tap-highlight-color: transparent;
     }
 
     #app {
@@ -102,6 +110,10 @@
       transition: var(--transition);
       min-height: 3rem;
       touch-action: manipulation;
+      /* 新增：重置 iOS Safari 預設樣式，確保跨平台一致 */
+      appearance: none;
+      -webkit-appearance: none;
+      -webkit-tap-highlight-color: transparent;
     }
 
     .btn-primary {
@@ -188,6 +200,12 @@
       max-height: 100%;
       object-fit: contain;
       pointer-events: auto;
+      /* 修改範例：疊加圖片/影片偏移 20% 從左上 */
+      left: 20%;
+      top: 20%;
+      /* 修改：Y 軸彈出動畫（從下往上彈出，初始 translateY(100%)） */
+      transform: translateY(100%);  /* 初始在下方 */
+      transition: transform 1s cubic-bezier(0.68, -0.55, 0.265, 1.55);  /* 彈出曲線 */
     }
 
     #overlay-video.hidden,
@@ -329,7 +347,7 @@
     @media (max-width: 480px) {
       .bar {
         flex-direction: column;
-        gap: 0.75rem;
+        gap: 0.75rem;  /* 優化：小螢幕按鈕間距，避免 iOS 觸摸誤觸 */
       }
 
       .btn {
@@ -495,8 +513,8 @@
         this.btnSettings = document.getElementById('btn-settings');
         this.scanLine = document.getElementById('scan-line');
 
-        // 替換為您的 .mind 檔案 URL 或 base64 (使用官方編譯工具生成)
-        this.trackerImageUrl = 'https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/image-tracking/assets/card-example/card.mind'; // 範例 tracker
+        // 修改：使用本地 assets 資料夾的 .mind 檔案（替換為您的檔案名）
+        this.trackerImageUrl = './assets/my-target.mind';  // 範例：替換為您的 .mind 檔案，如 'your-target.mind'
         this.overlayImageSrc = this.overlayImage.src;
         this.overlayVideoSrc = this.overlayVideo.querySelector('source').src;
 
@@ -506,6 +524,8 @@
         this.scene = null;
         this.renderer = null;
         this.anchor = null; // 新增：儲存 anchor 以檢查 visible
+        this.sphere = null;  // 新增：儲存 3D 物件引用，用於動畫
+        this.popStartTime = 0;  // 新增：彈出計時器
 
         this.hideLoading();
         setTimeout(() => this.hideLoading(), 5000);
@@ -641,23 +661,51 @@
         this.arCanvas.height = window.innerHeight;
         renderer.domElement = this.arCanvas;
 
-        // 添加錨點和示例物件（立方體）
+        // 添加錨點和示例物件（修改範例：紅色球體 + Y 軸彈出）
         this.anchor = start.addAnchor(0);
         const group = new THREE.Group();
         this.anchor.group.add(group);
 
-        const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-        const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-        const cube = new THREE.Mesh(geometry, material);
-        group.add(cube);
+        // 修改：換成球體，紅色
+        const geometry = new THREE.SphereGeometry(0.1, 32, 32);  // 球體半徑 0.1m
+        const material = new THREE.MeshBasicMaterial({ 
+          color: 0xff0000  // 紅色
+        });
+        this.sphere = new THREE.Mesh(geometry, material);  // 儲存引用
+        group.add(this.sphere);
+
+        // 修改：調整位置（Y 軸上移 1 單位，靠近圖片頂部）
+        group.position.set(0, 1, -0.5);  // Y=1
+
+        // 修改：調整大小（放大 1.5 倍）
+        this.sphere.scale.set(1.5, 1.5, 1.5);
 
         // 修復：使用 animation loop 檢查 anchor.visible 來偵測目標
         renderer.setAnimationLoop(() => {
           if (this.anchor.visible) {
             this.overlayContainer.classList.remove('hidden');
+            // 修改：2D 疊加 Y 軸彈出（CSS 處理，從 translateY(100%) 到 0）
+            this.overlayImage.style.transform = 'translateY(0)';  // 彈出到原位
+            this.overlayVideo.style.transform = 'translateY(0)';
+            
+            // 新增：3D Y 軸彈出動畫（從 scaleY(0) 到 1，每幀增加）
+            if (this.popStartTime === 0) {
+              this.popStartTime = Date.now();  // 開始計時
+              this.sphere.scale.y = 0;  // 初始 Y 壓扁
+            }
+            const elapsed = (Date.now() - this.popStartTime) / 1000;  // 秒數
+            this.sphere.scale.y = Math.min(elapsed * 2, 1);  // 彈出，0.5 秒完成（調整 *2 為速度）
+            
+            // 修改：加旋轉動畫
+            this.sphere.rotation.y += 0.01;  // 每幀旋轉 0.01 弧度
             this.updateStatus('目標找到！');
+            console.log('彈出觸發！');  // Debug：Console 確認觸發
           } else {
             this.overlayContainer.classList.add('hidden');
+            this.overlayImage.style.transform = 'translateY(100%)';  // 重置 2D 位置
+            this.overlayVideo.style.transform = 'translateY(100%)';
+            this.sphere.scale.y = 1.5;  // 重置 3D scale（原大小）
+            this.popStartTime = 0;  // 重置計時器
             this.updateStatus('尋找特定圖片...');
           }
           renderer.render(scene, camera);
@@ -728,7 +776,9 @@
               files: [file]
             }).then(() => {
               console.log('分享成功');
-              this.updateStatus('截圖已分享，可存到相簿！');
+              // 優化：iOS 提示分享到照片 App
+              const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+              this.updateStatus(isIOS ? '已分享！在選單選擇「照片」存相簿' : '截圖已分享，可存到相簿！');
             }).catch((err) => {
               console.warn('分享失敗，回退下載:', err);
               this.downloadFallback(blob, filename);  // Fallback 到下載
