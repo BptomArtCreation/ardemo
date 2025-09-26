@@ -182,6 +182,7 @@
       height: 100%;
       object-fit: cover;
       /* transform: scaleX(-1); 已移除，取消鏡頭反轉 */
+      display: none;  /* 新增：隱藏 video 元素，因為 texture 會在 canvas 上顯示 feed */
     }
 
     #overlay-container {
@@ -526,6 +527,7 @@
         this.anchor = null; // 新增：儲存 anchor 以檢查 visible
         this.sphere = null;  // 新增：儲存 3D 物件引用，用於動畫
         this.popStartTime = 0;  // 新增：彈出計時器
+        this.videoTexture = null;  // 新增：儲存 VideoTexture 引用
 
         this.hideLoading();
         setTimeout(() => this.hideLoading(), 5000);
@@ -555,6 +557,12 @@
         });
         this.camera.addEventListener('play', () => {
           console.log('Video started playing');
+          if (this.videoTexture) {
+            this.videoTexture.needsUpdate = true;  // 強制更新 texture
+          }
+        });
+        this.camera.addEventListener('canplay', () => {
+          console.log('Video can play');
         });
 
         document.addEventListener('visibilitychange', () => {
@@ -586,9 +594,10 @@
           const videoDevices = devices.filter(d => d.kind === 'videoinput');
           if (videoDevices.length === 0) throw new Error('無可用相機');
 
+          // 修改：請求最高權限，包括 audio（即使 muted），以確保 mobile 相容
           const constraints = {
             video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-            audio: false
+            audio: true  // 新增：請求 audio 權限，雖然不使用，但有助 mobile 穩定
           };
           const stream = await navigator.mediaDevices.getUserMedia(constraints);
           stream.getTracks().forEach(track => track.stop());
@@ -618,17 +627,28 @@
       async initCamera() {
         try {
           this.updateStatus('初始化相機...');
-          let constraints = { video: { facingMode: 'environment' } };
+          let constraints = { 
+            video: { facingMode: 'environment' }, 
+            audio: true  // 保持 audio 請求
+          };
           let stream;
           try {
             stream = await navigator.mediaDevices.getUserMedia(constraints);
           } catch {
-            constraints = { video: true };
+            // Fallback：無 facingMode，請求所有可用
+            constraints = { video: true, audio: true };
             stream = await navigator.mediaDevices.getUserMedia(constraints);
           }
 
           this.camera.srcObject = stream;
-          await this.camera.play();
+          this.camera.muted = true;  // 確保 muted
+          await this.camera.play();  // 強制 play，在 user gesture 內
+
+          // 新增：請求全螢幕模式（最高權限，改善 AR 體驗）
+          if (document.documentElement.requestFullscreen) {
+            await document.documentElement.requestFullscreen();
+            console.log('全螢幕模式啟動');
+          }
 
           this.startMindAR = await this.initMindAR();
           if (!this.startMindAR) throw new Error('MindAR 初始化失敗');
@@ -663,16 +683,26 @@
         this.renderer = renderer;
         this.scene = scene;
 
+        // 新增：優化 renderer 設定，針對 mobile/Android 黑屏問題
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.powerPreference = 'high-performance';  // 針對 Android 效能
+        renderer.antialias = true;  // 改善畫質
         this.arCanvas.width = window.innerWidth;
         this.arCanvas.height = window.innerHeight;
         renderer.domElement = this.arCanvas;
 
         // 新增：將 video feed 作為 texture 設定為 scene background，讓 AR canvas 顯示相機影像
-        const videoTexture = new THREE.VideoTexture(this.camera);
-        videoTexture.minFilter = THREE.LinearFilter;  // 避免紋理模糊（可選，優化畫質）
-        scene.background = videoTexture;
+        // 確保 video 已 ready
+        if (this.camera.readyState === 0) {
+          await new Promise(resolve => {
+            this.camera.addEventListener('loadeddata', resolve, { once: true });
+          });
+        }
+        this.videoTexture = new THREE.VideoTexture(this.camera);
+        this.videoTexture.minFilter = THREE.LinearFilter;  // 避免紋理模糊（可選，優化畫質）
+        this.videoTexture.needsUpdate = true;  // 強制更新
+        scene.background = this.videoTexture;
 
         // 添加錨點和示例物件（修改範例：紅色球體 + Y 軸彈出）
         this.anchor = start.addAnchor(0);
@@ -695,6 +725,10 @@
 
         // 修復：使用 animation loop 檢查 anchor.visible 來偵測目標
         renderer.setAnimationLoop(() => {
+          // 新增：每幀更新 texture（針對 mobile 問題）
+          if (this.videoTexture && this.camera.readyState > 0) {
+            this.videoTexture.needsUpdate = true;
+          }
           if (this.anchor.visible) {
             this.overlayContainer.classList.remove('hidden');
             // 修改：2D 疊加 Y 軸彈出（CSS 處理，從 translateY(100%) 到 0）
