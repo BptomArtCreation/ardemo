@@ -170,6 +170,7 @@
       align-items: center;
       justify-content: center;
       z-index: 1;
+      touch-action: none;  /* 新增：避免觸控衝突 */
     }
 
     #camera {
@@ -441,14 +442,14 @@
       max-width: 90%;
     }
 
-    /* 新增：確保 Three.js canvas 覆蓋 video */
+    /* 確保 Three.js canvas 覆蓋 video */
     #camera-container canvas {
       position: absolute !important;
       top: 0 !important;
       left: 0 !important;
       width: 100% !important;
       height: 100% !important;
-      z-index: 3 !important;  /* 高於 video 的 z-index 1 */
+      z-index: 3 !important;
     }
   </style>
 </head>
@@ -485,7 +486,6 @@
         <img id="target-bg" src="./assets/target-image.jpg" alt="目標圖片" />
 
         <div id="overlay-container" aria-hidden="true" class="hidden">
-          <!-- 移除 DOM overlay-image，因為現在用 3D Plane -->
           <video id="overlay-video" loop muted playsinline class="hidden">
             <source src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZm... (佔位：替換為實際 mp4 base64 或 URL)" type="video/mp4" />
           </video>
@@ -540,7 +540,8 @@
   <script type="module">
     import * as THREE from 'three';
     import { MindARThree } from 'mindar-image-three';
-    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';  // 新增：GLTFLoader
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';  // 新增：OrbitControls
 
     class ARApp {
       constructor() {
@@ -569,7 +570,7 @@
 
         this.trackerImageUrl = './assets/my-target.mind';
         this.targetImageUrl = './assets/target-image.jpg';
-        this.modelUrl = './assets/my-model.gltf';  // 新增：你的 3D 模型路徑（改成你的檔名）
+        this.modelUrl = './assets/my-model.gltf';  // 改成你的 .gltf
         this.overlayVideoSrc = this.overlayVideo.querySelector('source').src;
 
         this.startMindAR = null;
@@ -577,11 +578,13 @@
         this.isTorchOn = false;
         this.scene = null;
         this.renderer = null;
+        this.camera3D = null;  // Three.js camera
         this.anchor = null;
-        this.modelGroup = null;  // 新增：模型群組
-        this.testSphere = null;  // 測試球
-        this.mixer = null;  // 新增：動畫 mixer（如果模型有動畫）
-        this.clock = new THREE.Clock();  // 新增：時鐘，用於動畫
+        this.modelGroup = null;
+        this.controls = null;  // 新增：OrbitControls
+        this.testSphere = null;
+        this.mixer = null;
+        this.clock = new THREE.Clock();
         this.popStartTime = 0;
         this.isTargetDetected = false;
 
@@ -682,21 +685,18 @@
           this.camera.muted = true;
           await this.camera.play();
 
-          // 立即切換到 camera-screen
           this.permissionDialog.classList.add('hidden');
           this.cameraScreen.classList.remove('hidden');
           this.startScreen.classList.add('hidden');
 
-          // 顯示掃描提示和目標背景圖片（帶動畫）
           this.scanTip.classList.remove('hidden');
           setTimeout(() => this.scanTip.classList.add('show'), 100);
           this.targetBg.style.display = 'block';
           this.targetBg.src = this.targetImageUrl;
 
-          // MindAR 初始化（失敗不影響畫面顯示）
           try {
             this.startMindAR = await this.initMindAR();
-            this.updateStatus('掃描特定圖片以顯示 3D 模型...（檢查綠色小球是否顯示）');
+            this.updateStatus('掃描特定圖片以顯示 3D 模型...（檢查綠色小球）');
             this.scanLine.style.display = 'block';
           } catch (mindarErr) {
             console.error('MindAR 初始化失敗:', mindarErr);
@@ -715,7 +715,7 @@
         const start = new MindARThree({
           container: document.getElementById('camera-container'),
           imageTargetSrc: this.trackerImageUrl,
-          interpolationFactor: 0.05,
+          interpolationFactor: 0.03,  // 優化：降低抖動/負荷
           maxTrackLost: 5,
           uiLoading: false,
           uiScanning: '#status-tip',
@@ -723,19 +723,22 @@
           filterBeta: 0.01
         });
 
-        const { renderer, scene, camera } = start;
+        const { renderer, scene, camera: arCamera } = start;
         this.renderer = renderer;
         this.scene = scene;
+        this.camera3D = arCamera;  // 存 camera 給 controls
 
+        // 效能優化
         renderer.powerPreference = 'high-performance';
         renderer.antialias = true;
-        renderer.setClearColor(0x000000, 0);  // 透明背景
+        renderer.setClearColor(0x000000, 0);
+        renderer.setPixelRatio(window.devicePixelRatio * 0.8);  // 新增：降解析度減負荷
 
         this.anchor = start.addAnchor(0);
         const group = new THREE.Group();
         this.anchor.group.add(group);
 
-        // 新增：測試球（綠色，小，總是顯示）
+        // 測試球
         const testGeometry = new THREE.SphereGeometry(0.05, 16, 16);
         const testMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
         this.testSphere = new THREE.Mesh(testGeometry, testMaterial);
@@ -743,11 +746,21 @@
         scene.add(this.testSphere);
         this.testSphere.visible = true;
 
-        // 新增：載入 3D 模型
-        this.modelGroup = new THREE.Group();  // 模型容器
+        // 模型群組
+        this.modelGroup = new THREE.Group();
         group.add(this.modelGroup);
-        this.modelGroup.visible = false;  // 初始隱藏
+        this.modelGroup.visible = false;
 
+        // 新增：OrbitControls（轉動模型）
+        this.controls = new OrbitControls(this.camera3D, renderer.domElement);
+        this.controls.enableDamping = true;  // 平滑
+        this.controls.dampingFactor = 0.05;
+        this.controls.enablePan = false;  // 禁平移
+        this.controls.enableZoom = false;  // 禁縮放（AR 固定）
+        this.controls.target.set(0, 0, 0);  // 轉動中心
+        this.controls.enabled = false;  // 初始停用
+
+        // 載入模型
         const loader = new GLTFLoader();
         loader.load(
           this.modelUrl,
@@ -756,12 +769,17 @@
             const model = gltf.scene;
             this.modelGroup.add(model);
 
-            // 調整模型（依你的模型大小調）
-            model.scale.set(0.5, 0.5, 0.5);  // 縮放（調小/大）
-            model.position.set(0, 0, 0);  // 位置（Y 向上，Z 前方）
-            model.rotation.set(0, Math.PI, 0);  // 旋轉（Y 軸 180 度翻轉，常見）
+            // 預載紋理（優化卡頓）
+            model.traverse((child) => {
+              if (child.isMesh && child.material.map) {
+                this.renderer.initTexture(child.material.map);
+              }
+            });
 
-            // 如果有動畫
+            model.scale.set(0.5, 0.5, 0.5);
+            model.position.set(0, 0, 0);
+            model.rotation.set(0, Math.PI, 0);
+
             if (gltf.animations && gltf.animations.length > 0) {
               this.mixer = new THREE.AnimationMixer(model);
               const action = this.mixer.clipAction(gltf.animations[0]);
@@ -769,7 +787,7 @@
               console.log('模型動畫開始播放');
             }
 
-            this.updateStatus('3D 模型已載入，掃描目標以顯示');
+            this.updateStatus('3D 模型已載入，可拖拉轉動（偵測後）');
           },
           (progress) => {
             console.log('模型載入進度:', (progress.loaded / progress.total * 100) + '%');
@@ -777,7 +795,6 @@
           (error) => {
             console.error('載入 3D 模型失敗:', error);
             this.updateStatus('模型載入失敗，請檢查檔案路徑', 'error');
-            // Fallback：加一個簡單立方體測試
             const fallbackGeometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
             const fallbackMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
             const fallbackCube = new THREE.Mesh(fallbackGeometry, fallbackMaterial);
@@ -785,13 +802,11 @@
           }
         );
 
-        // 位置調整：模型群組前移
         group.position.set(0, 0, 0.1);
 
         console.log('MindAR 初始化完成，測試綠球應立即顯示');
 
         renderer.setAnimationLoop(() => {
-          // 更新動畫（如果有）
           if (this.mixer) {
             this.mixer.update(this.clock.getDelta());
           }
@@ -807,11 +822,13 @@
             this.overlayContainer.classList.remove('hidden');
             this.overlayVideo.style.transform = 'translate(-50%, -50%) translateY(0) scale(1)';
             
-            // 顯示模型 + 旋轉
             this.modelGroup.visible = true;
-            this.modelGroup.rotation.y += 0.01;  // 輕微旋轉動畫
+            this.modelGroup.rotation.y += 0.01;  // 自動旋轉（可關閉）
             
-            this.updateStatus('目標找到！你的 3D 模型應顯示（+綠色測試球）');
+            // 新增：啟用 controls 轉動
+            this.controls.enabled = true;
+
+            this.updateStatus('目標找到！拖拉轉動模型（+綠色測試球）');
             this.popStartTime = 0;  
           } else {
             console.log('未偵測：隱藏 3D 模型');
@@ -824,18 +841,24 @@
             this.overlayContainer.classList.add('hidden');
             this.overlayVideo.style.transform = 'translate(-50%, -50%) translateY(100%) scale(0.8)';
             
-            // 隱藏模型
             this.modelGroup.visible = false;
             this.modelGroup.rotation.set(0, 0, 0);
             
+            // 停用 controls
+            this.controls.enabled = false;
+
             this.popStartTime = 0;
             this.updateStatus('尋找特定圖片...（綠色小球應一直顯示）');
           }
 
-          // 測試球旋轉
+          // 更新 controls
+          if (this.controls.enabled) {
+            this.controls.update();
+          }
+
           this.testSphere.rotation.y += 0.01;
 
-          renderer.render(scene, camera);
+          renderer.render(scene, this.camera3D);
         });
 
         await start.start({ inputSrc: this.camera });
