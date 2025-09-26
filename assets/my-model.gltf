@@ -3,53 +3,129 @@
 		"generator":"Khronos glTF Blender I/O v4.2.60",
 		"version":"2.0"
 	},
-	"extensionsUsed":[
-		"KHR_materials_transmission",
-		"KHR_materials_specular"
-	],
 	"scene":0,
 	"scenes":[
 		{
 			"name":"Scene",
 			"nodes":[
-				0
+				0,
+				6
 			]
 		}
 	],
 	"nodes":[
 		{
 			"mesh":0,
-			"name":"Abstract_Coil_Shape_v1_002",
-			"rotation":[
-				0.70710688829422,
-				0,
-				0,
-				0.7071066498756409
-			],
+			"name":"Mesh_0",
 			"translation":[
 				0,
-				-8.14116382598877,
+				-8.814945220947266,
 				0
 			]
+		},
+		{
+			"name":"Node_10",
+			"rotation":[
+				-0.22699345648288727,
+				0.40266937017440796,
+				0.10378970950841904,
+				0.8806584477424622
+			],
+			"scale":[
+				6.692241668701172,
+				6.165896415710449,
+				2.2820863723754883
+			],
+			"translation":[
+				16.55673599243164,
+				16.583951950073242,
+				14.011454582214355
+			]
+		},
+		{
+			"name":"Node_11",
+			"translation":[
+				-22.502586364746094,
+				0,
+				-7.910168647766113
+			]
+		},
+		{
+			"name":"Node_7",
+			"rotation":[
+				-0.3596053719520569,
+				-0.18447299301624298,
+				-0.07275524735450745,
+				0.9117896556854248
+			],
+			"scale":[
+				6.692241191864014,
+				6.165896415710449,
+				2.282086133956909
+			],
+			"translation":[
+				-5.058539390563965,
+				16.583951950073242,
+				14.577075958251953
+			]
+		},
+		{
+			"name":"Node_8",
+			"rotation":[
+				0,
+				0.7071068286895752,
+				0,
+				0.7071067094802856
+			],
+			"scale":[
+				4.892771244049072,
+				7.5261993408203125,
+				2.2820863723754883
+			],
+			"translation":[
+				21.068288803100586,
+				8.532999992370605,
+				0.0007496540783904493
+			]
+		},
+		{
+			"name":"Node_9",
+			"rotation":[
+				0,
+				-0.9142096042633057,
+				0,
+				0.4052416682243347
+			],
+			"scale":[
+				4.892771244049072,
+				7.5261993408203125,
+				2.282086133956909
+			],
+			"translation":[
+				-19.187911987304688,
+				8.532999992370605,
+				-11.818970680236816
+			]
+		},
+		{
+			"children":[
+				1,
+				2,
+				3,
+				4,
+				5
+			],
+			"name":"Node_6"
 		}
 	],
 	"materials":[
 		{
-			"doubleSided":true,
-			"extensions":{
-				"KHR_materials_transmission":{
-					"transmissionFactor":1
-				},
-				"KHR_materials_specular":{
-					"specularFactor":0
-				}
-			},
-			"name":"VRayMtl1SG",
+			"name":"Material_0",
 			"pbrMetallicRoughness":{
 				"baseColorFactor":[
-					0,
-					0,
-					0,
+					0.5,
+					0.5,
+					0.5,
 					1
 				],
 				"metallicFactor":0
@@ -58,7 +134,7 @@
 	],
 	"meshes":[
 		{
-			"name":"Abstract_Coil_Shape_v1_002",
+			"name":"Mesh_0",
 			"primitives":[
 				{
 					"attributes":{
@@ -76,67 +152,67 @@
 		{
 			"bufferView":0,
 			"componentType":5126,
-			"count":9260,
+			"count":86015,
 			"max":[
-				6.439667224884033,
-				2.7568159103393555,
-				-2.3691840171813965
+				4.769776821136475,
+				12.066329956054688,
+				3.4415817260742188
 			],
 			"min":[
-				-6.45989990234375,
-				-2.7569239139556885,
-				-14.930357933044434
+				-4.764869213104248,
+				4.476771831512451,
+				-3.454957962036133
 			],
 			"type":"VEC3"
 		},
 		{
 			"bufferView":1,
 			"componentType":5126,
-			"count":9260,
+			"count":86015,
 			"type":"VEC3"
 		},
 		{
 			"bufferView":2,
 			"componentType":5126,
-			"count":9260,
+			"count":86015,
 			"type":"VEC2"
 		},
 		{
 			"bufferView":3,
-			"componentType":5123,
-			"count":40290,
+			"componentType":5125,
+			"count":396000,
 			"type":"SCALAR"
 		}
 	],
 	"bufferViews":[
 		{
 			"buffer":0,
-			"byteLength":111120,
+			"byteLength":1032180,
 			"byteOffset":0,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":111120,
-			"byteOffset":111120,
+			"byteLength":1032180,
+			"byteOffset":1032180,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":74080,
-			"byteOffset":222240,
+			"byteLength":688120,
+			"byteOffset":2064360,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":80580,
-			"byteOffset":296320,
+			"byteLength":1584000,
+			"byteOffset":2752480,
 			"target":34963
 		}
 	],
 	"buffers":[
 		{
-			"byteLength":376900,
+			"byteLength":4336480,
 			"uri":"my-model.bin"
 		}
 	]
