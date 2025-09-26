@@ -745,6 +745,15 @@
         this.scene = scene;
         this.camera3D = arCamera;
 
+        // 新增：添加燈光以避免模型全黑
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); // 環境光，提供均勻照明
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8); // 方向光，模擬陽光
+        directionalLight.position.set(1, 1, 1); // 位置調整以照亮模型
+        directionalLight.castShadow = true; // 可選：啟用陰影
+        scene.add(directionalLight);
+
         renderer.powerPreference = 'high-performance';
         renderer.antialias = true;
         renderer.setClearColor(0x000000, 0);
