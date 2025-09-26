@@ -210,21 +210,19 @@
       z-index: 5;
     }
 
-    #overlay-image,
     #overlay-video {
       position: absolute;
       max-width: 100%;
       max-height: 100%;
       object-fit: contain;
       pointer-events: auto;
-      left: 20%;
-      top: 20%;
-      transform: translateY(100%);
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%) translateY(100%) scale(0.8);
       transition: transform 1s cubic-bezier(0.68, -0.55, 0.265, 1.55);
     }
 
-    #overlay-video.hidden,
-    #overlay-image.hidden {
+    #overlay-video.hidden {
       display: none;
     }
 
@@ -477,7 +475,7 @@
         <img id="target-bg" src="./assets/target-image.jpg" alt="目標圖片" />
 
         <div id="overlay-container" aria-hidden="true" class="hidden">
-          <img id="overlay-image" src="./assets/my-overlay.png" alt="自訂疊加圖片" />  <!-- 修改：替換為自訂圖片路徑 -->
+          <!-- 移除 DOM overlay-image，因為現在用 3D Plane -->
           <video id="overlay-video" loop muted playsinline class="hidden">
             <source src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZm... (佔位：替換為實際 mp4 base64 或 URL)" type="video/mp4" />
           </video>
@@ -545,7 +543,6 @@
         this.camera = document.getElementById('camera');
         this.targetBg = document.getElementById('target-bg');
         this.overlayContainer = document.getElementById('overlay-container');
-        this.overlayImage = document.getElementById('overlay-image');
         this.overlayVideo = document.getElementById('overlay-video');
         this.statusTip = document.getElementById('status-tip');
         this.statusText = document.getElementById('status-text');
@@ -563,7 +560,7 @@
 
         this.trackerImageUrl = './assets/my-target.mind';
         this.targetImageUrl = './assets/target-image.jpg';
-        this.overlayImageSrc = './assets/my-overlay.png';  // 修改：更新 overlay 圖片路徑
+        this.overlayImageSrc = './assets/my-overlay.png';
         this.overlayVideoSrc = this.overlayVideo.querySelector('source').src;
 
         this.startMindAR = null;
@@ -573,6 +570,7 @@
         this.renderer = null;
         this.anchor = null;
         this.sphere = null;
+        this.overlayPlane = null;  // 新增：3D Plane 引用
         this.popStartTime = 0;
         this.isTargetDetected = false;
 
@@ -726,10 +724,33 @@
         const group = new THREE.Group();
         this.anchor.group.add(group);
 
+        // 保留紅色球體
         const geometry = new THREE.SphereGeometry(0.1, 32, 32);
         const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
         this.sphere = new THREE.Mesh(geometry, material);
         group.add(this.sphere);
+
+        // 新增：3D Plane 用於疊加 my-overlay.png
+        const planeGeometry = new THREE.PlaneGeometry(0.5, 0.5);  // 平面大小（可調整）
+        const planeTexture = new THREE.TextureLoader().load(this.overlayImageSrc, 
+          // 載入成功回調
+          () => { console.log('Overlay texture loaded'); },
+          // 進度回調
+          undefined,
+          // 錯誤回調
+          (err) => { console.error('Failed to load overlay texture:', err); }
+        );
+        const planeMaterial = new THREE.MeshBasicMaterial({ 
+          map: planeTexture, 
+          transparent: true,  // 支援 PNG 透明
+          side: THREE.DoubleSide  // 雙面渲染
+        });
+        this.overlayPlane = new THREE.Mesh(planeGeometry, planeMaterial);
+        group.add(this.overlayPlane);  // 加到錨點群組，精確 3D 定位
+
+        // 初始 Plane 位置：貼在目標物體表面（Z = -0.01 以略微前置）
+        this.overlayPlane.position.set(0, 0, -0.01);
+        this.overlayPlane.visible = false;  // 初始隱藏
 
         group.position.set(0, 1, -0.5);
         this.sphere.scale.set(1.5, 1.5, 1.5);
@@ -743,16 +764,25 @@
             }
 
             this.overlayContainer.classList.remove('hidden');
-            this.overlayImage.style.transform = 'translateY(0)';
-            this.overlayVideo.style.transform = 'translateY(0)';
+            this.overlayVideo.style.transform = 'translate(-50%, -50%) translateY(0) scale(1)';
             
+            // 顯示並動畫 Plane（彈出 + 旋轉）
+            this.overlayPlane.visible = true;
             if (this.popStartTime === 0) {
               this.popStartTime = Date.now();
-              this.sphere.scale.y = 0;
+              this.overlayPlane.scale.set(0.5, 0.5, 0.5);  // 初始縮放
+              this.overlayPlane.rotation.set(0, 0, -Math.PI / 6);  // 初始輕微傾斜
             }
             const elapsed = (Date.now() - this.popStartTime) / 1000;
-            this.sphere.scale.y = Math.min(elapsed * 2, 1);
+            this.overlayPlane.scale.set(
+              Math.min(elapsed * 2, 1),  // X/Y 縮放
+              Math.min(elapsed * 2, 1),
+              1  // Z 保持 1（平面）
+            );
+            this.overlayPlane.rotation.y += 0.01;  // 持續旋轉
             
+            // 球體動畫
+            this.sphere.scale.y = Math.min(elapsed * 2, 1);
             this.sphere.rotation.y += 0.01;
             this.updateStatus('目標找到！');
             console.log('彈出觸發！');
@@ -764,8 +794,14 @@
             }
 
             this.overlayContainer.classList.add('hidden');
-            this.overlayImage.style.transform = 'translateY(100%)';
-            this.overlayVideo.style.transform = 'translateY(100%)';
+            this.overlayVideo.style.transform = 'translate(-50%, -50%) translateY(100%) scale(0.8)';
+            
+            // 隱藏 Plane
+            this.overlayPlane.visible = false;
+            this.overlayPlane.scale.set(0.5, 0.5, 0.5);  // 重置縮放
+            this.overlayPlane.rotation.set(0, 0, 0);
+            
+            // 重置球體
             this.sphere.scale.y = 1.5;
             this.popStartTime = 0;
             this.updateStatus('尋找特定圖片...');
@@ -780,13 +816,14 @@
       toggleOverlayContent() {
         this.isVideoMode = !this.isVideoMode;
         if (this.isVideoMode) {
-          this.overlayImage.classList.add('hidden');
+          // 切換到影片模式（DOM 影片仍保留，可選）
           this.overlayVideo.classList.remove('hidden');
           this.overlayVideo.load();
           this.overlayVideo.play().catch(e => console.warn('影片播放警告:', e));
+          // 若要 3D 影片，可未來用 VideoTexture 替換 Plane 材質
         } else {
           this.overlayVideo.classList.add('hidden');
-          this.overlayImage.classList.remove('hidden');
+          // 回 3D Plane（已處理）
         }
       }
 
@@ -812,10 +849,18 @@
         this.captureCanvas.height = this.camera.videoHeight;
         ctx.drawImage(this.camera, 0, 0);
 
-        if (!this.overlayContainer.classList.contains('hidden')) {
-          const overlayElem = this.isVideoMode ? this.overlayVideo : this.overlayImage;
-          const rect = overlayElem.getBoundingClientRect();
-          ctx.drawImage(overlayElem, rect.left, rect.top, rect.width, rect.height);
+        // 由於 Plane 是 3D，截圖需從 renderer 擷取（或 fallback DOM）
+        if (this.renderer && this.isTargetDetected) {
+          // 使用 renderer 讀取畫布（包含 3D overlay）
+          this.renderer.readRenderTargetPixels(this.renderer.getContext().getParameter(this.renderer.getContext().CANVAS), 0, 0, this.captureCanvas.width, this.captureCanvas.height, new Uint8Array(this.captureCanvas.width * this.captureCanvas.height * 4));
+          const imageData = this.renderer.getContext().getImageData(0, 0, this.captureCanvas.width, this.captureCanvas.height);
+          ctx.putImageData(imageData, 0, 0);
+        }
+
+        if (!this.overlayContainer.classList.contains('hidden') && !this.isVideoMode) {
+          // 若有 DOM 影片，fallback 繪製
+          const rect = this.overlayVideo.getBoundingClientRect();
+          ctx.drawImage(this.overlayVideo, rect.left, rect.top, rect.width, rect.height);
         }
 
         this.captureCanvas.toBlob((blob) => {
