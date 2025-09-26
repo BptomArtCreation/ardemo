@@ -313,17 +313,17 @@
       text-align: center;
       z-index: 25;
       border: 1px solid var(--accent);
-      opacity: 0;  /* 初始隱藏 */
-      transform: translateX(-50%) translateY(20px);  /* 初始偏移 */
-      transition: opacity 0.5s ease, transform 0.5s ease;  /* 淡入滑入動畫 */
+      opacity: 0;
+      transform: translateX(-50%) translateY(20px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
     }
 
-    .scan-tip.show {  /* 顯示類別：觸發動畫 */
+    .scan-tip.show {
       opacity: 1;
       transform: translateX(-50%) translateY(0);
     }
 
-    .scan-tip.hide {  /* 隱藏類別：淡出滑出動畫 */
+    .scan-tip.hide {
       opacity: 0;
       transform: translateX(-50%) translateY(20px);
     }
@@ -477,7 +477,7 @@
         <img id="target-bg" src="./assets/target-image.jpg" alt="目標圖片" />
 
         <div id="overlay-container" aria-hidden="true" class="hidden">
-          <img id="overlay-image" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMDBkNGZmIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7vv70g5Lit5b+DPC90ZXh0Pjwvc3ZnPg==" alt="預設疊加圖片" />
+          <img id="overlay-image" src="./assets/my-overlay.png" alt="自訂疊加圖片" />  <!-- 修改：替換為自訂圖片路徑 -->
           <video id="overlay-video" loop muted playsinline class="hidden">
             <source src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZm... (佔位：替換為實際 mp4 base64 或 URL)" type="video/mp4" />
           </video>
@@ -507,7 +507,6 @@
           <button id="btn-capture" class="btn btn-primary">
             <span class="icon">⬇️</span> 截圖保存
           </button>
-          <!-- 移除 AR.js 按鈕 -->
         </div>
       </footer>
     </section>
@@ -564,7 +563,7 @@
 
         this.trackerImageUrl = './assets/my-target.mind';
         this.targetImageUrl = './assets/target-image.jpg';
-        this.overlayImageSrc = this.overlayImage.src;
+        this.overlayImageSrc = './assets/my-overlay.png';  // 修改：更新 overlay 圖片路徑
         this.overlayVideoSrc = this.overlayVideo.querySelector('source').src;
 
         this.startMindAR = null;
@@ -575,7 +574,7 @@
         this.anchor = null;
         this.sphere = null;
         this.popStartTime = 0;
-        this.isTargetDetected = false;  // 新增：追蹤偵測狀態，避免重複隱藏提示
+        this.isTargetDetected = false;
 
         this.hideLoading();
         setTimeout(() => this.hideLoading(), 5000);
@@ -682,7 +681,7 @@
 
           // 顯示掃描提示和目標背景圖片（帶動畫）
           this.scanTip.classList.remove('hidden');
-          setTimeout(() => this.scanTip.classList.add('show'), 100);  // 延遲觸發顯示動畫
+          setTimeout(() => this.scanTip.classList.add('show'), 100);
           this.targetBg.style.display = 'block';
           this.targetBg.src = this.targetImageUrl;
 
@@ -739,9 +738,8 @@
           if (this.anchor.visible) {
             if (!this.isTargetDetected) {
               this.isTargetDetected = true;
-              // 隱藏掃描提示（帶淡出動畫）
               this.scanTip.classList.add('hide');
-              setTimeout(() => this.scanTip.classList.add('hidden'), 500);  // 動畫後隱藏
+              setTimeout(() => this.scanTip.classList.add('hidden'), 500);
             }
 
             this.overlayContainer.classList.remove('hidden');
@@ -761,7 +759,6 @@
           } else {
             if (this.isTargetDetected) {
               this.isTargetDetected = false;
-              // 重新顯示提示（帶淡入動畫）
               this.scanTip.classList.remove('hidden', 'hide');
               setTimeout(() => this.scanTip.classList.add('show'), 100);
             }
