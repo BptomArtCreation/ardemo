@@ -495,9 +495,7 @@
       </div>
 
       <header class="topbar">
-        <button id="btn-torch" class="btn icon-only" title="手電筒">🔦</button>
         <div class="spacer"></div>
-        <button id="btn-switch-content" class="btn" title="切換疊加（圖/影片）">切換疊加</button>
       </header>
 
       <div id="status-tip" class="status-tip hidden">
@@ -514,6 +512,7 @@
           <button id="btn-capture" class="btn btn-primary">
             <span class="icon">⬇️</span> 截圖保存
           </button>
+          <button id="btn-torch" class="btn icon-only" title="手電筒">🔦</button>
         </div>
       </footer>
     </section>
@@ -564,7 +563,6 @@
         this.btnGrant = document.getElementById('btn-grant');
         this.btnDeny = document.getElementById('btn-deny');
         this.btnCapture = document.getElementById('btn-capture');
-        this.btnSwitchContent = document.getElementById('btn-switch-content');
         this.btnTorch = document.getElementById('btn-torch');
         this.scanLine = document.getElementById('scan-line');
 
@@ -574,7 +572,6 @@
         this.overlayVideoSrc = this.overlayVideo.querySelector('source').src;
 
         this.startMindAR = null;
-        this.isVideoMode = false;
         this.isTorchOn = false;
         this.scene = null;
         this.renderer = null;
@@ -599,7 +596,6 @@
         this.btnGrant.addEventListener('click', () => this.initCamera());
         this.btnDeny.addEventListener('click', () => this.showStartScreen());
         this.btnCapture.addEventListener('click', () => this.captureScreenshot());
-        this.btnSwitchContent.addEventListener('click', () => this.toggleOverlayContent());
         this.btnTorch.addEventListener('click', () => this.toggleTorch());
 
         this.camera.addEventListener('error', (e) => {
@@ -865,17 +861,6 @@
         return start;
       }
 
-      toggleOverlayContent() {
-        this.isVideoMode = !this.isVideoMode;
-        if (this.isVideoMode) {
-          this.overlayVideo.classList.remove('hidden');
-          this.overlayVideo.load();
-          this.overlayVideo.play().catch(e => console.warn('影片播放警告:', e));
-        } else {
-          this.overlayVideo.classList.add('hidden');
-        }
-      }
-
       async toggleTorch() {
         try {
           const track = this.camera.srcObject.getVideoTracks()[0];
@@ -902,7 +887,7 @@
           ctx.putImageData(imageData, 0, 0);
         }
 
-        if (!this.overlayContainer.classList.contains('hidden') && !this.isVideoMode) {
+        if (!this.overlayContainer.classList.contains('hidden')) {
           const rect = this.overlayVideo.getBoundingClientRect();
           ctx.drawImage(this.overlayVideo, rect.left, rect.top, rect.width, rect.height);
         }
