@@ -769,7 +769,10 @@
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.05;
         this.controls.enablePan = false;
-        this.controls.enableZoom = false;
+        this.controls.enableZoom = true;  // 啟用縮放
+        this.controls.zoomSpeed = 0.5;  // 調整縮放速度
+        this.controls.maxDistance = 5;  // 最大縮放距離
+        this.controls.minDistance = 0.1;  // 最小縮放距離
         this.controls.target.set(0, 0, 0);
         this.controls.enabled = false;
 
@@ -803,7 +806,7 @@
               console.log('模型動畫開始播放');
             }
 
-            this.updateStatus('3D 模型已載入，可拖拉轉動（偵測後）');
+            this.updateStatus('3D 模型已載入，可拖拉轉動及捏合縮放（偵測後）');
           },
           (progress) => {
             console.log('模型載入進度:', (progress.loaded / progress.total * 100) + '%');
@@ -876,7 +879,7 @@
               });
             }
 
-            this.updateStatus('目標找到！拖拉轉動模型（+綠色測試球）');
+            this.updateStatus('目標找到！拖拉轉動及捏合縮放模型（+綠色測試球）');
             this.popStartTime = 0;  
           } else {
             console.log('未偵測：隱藏 3D 模型');
