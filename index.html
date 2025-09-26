@@ -113,7 +113,7 @@
       -webkit-appearance: none;
       -webkit-tap-highlight-color: transparent;
       pointer-events: auto;
-      flex-shrink: 0; /* 新增：防止按鈕在窄空間縮小 */
+      flex-shrink: 0;
     }
 
     .btn-primary {
@@ -190,10 +190,13 @@
 
     #target-bg {
       position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      max-width: 40vw; /* 修改：限制最大寬度為視窗寬度的 40%，讓圖片縮小 */
+      max-height: 40vh; /* 修改：限制最大高度為視窗高度的 40% */
+      width: auto;
+      height: auto;
       object-fit: contain;
       opacity: 0.2;
       z-index: 2;
@@ -393,21 +396,31 @@
 
     @media (max-width: 480px) {
       .bar {
-        flex-direction: row; /* 修改：強制水平排列，取代原 column */
-        flex-wrap: wrap; /* 新增：如果空間不足，自動換行 */
+        flex-direction: row;
+        flex-wrap: wrap;
         gap: 0.75rem;
-        justify-content: center; /* 確保居中 */
+        justify-content: center;
       }
 
       .btn {
-        flex: 1; /* 修改：讓按鈕自動調整寬度，但最小 100% 失效 */
-        min-width: auto; /* 新增：允許縮小以適應 row */
+        flex: 1;
+        min-width: auto;
         max-width: none;
         justify-content: center;
       }
 
       .btn.icon-only {
-        flex: 0 0 auto; /* 新增：圖示按鈕不伸縮，保持固定大小 */
+        flex: 0 0 auto;
+      }
+
+      /* 修改：手機上讓啟動畫面按鈕位置更低 */
+      .screen {
+        justify-content: flex-end;
+        padding-bottom: 4rem;
+      }
+
+      .branding {
+        margin-bottom: 1rem; /* 減少標題與按鈕間距 */
       }
     }
 
@@ -579,7 +592,7 @@
 
         this.trackerImageUrl = './assets/my-target.mind';
         this.targetImageUrl = './assets/target-image.jpg';
-        this.modelUrl = './assets/my-model.glb';
+        this.modelUrl = './assets/my-model.gltf';
         this.overlayVideoSrc = this.overlayVideo.querySelector('source').src;
 
         this.startMindAR = null;
@@ -745,7 +758,7 @@
         this.scene = scene;
         this.camera3D = arCamera;
 
-        // 新增：添加燈光以避免模型全黑
+        // 添加燈光以避免模型全黑
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); // 環境光，提供均勻照明
         scene.add(ambientLight);
 
@@ -867,7 +880,7 @@
             this.overlayVideo.style.transform = 'translate(-50%, -50%) translateY(0) scale(1)';
             
             this.modelGroup.visible = true;
-            this.modelGroup.rotation.y += 0.5 * delta; /* 修改：基於 delta 的順暢旋轉（約 28.6 度/秒） */
+            this.modelGroup.rotation.y += 0.5 * delta;
             
             this.controls.enabled = true;
 
@@ -931,7 +944,7 @@
             this.controls.update();
           }
 
-          this.testSphere.rotation.y += 0.5 * delta; /* 修改：基於 delta 的順暢旋轉，與模型同步 */
+          this.testSphere.rotation.y += 0.5 * delta;
 
           renderer.render(scene, this.camera3D);
         });
