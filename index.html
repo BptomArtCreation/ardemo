@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <title>AR Overlay Demo</title>
+  <title>AR Demo</title>
   <style>
     :root {
       --bg-primary: #13151a;
@@ -158,19 +158,20 @@
     #camera-screen {
       background: black;
       justify-content: flex-start;
+      display: flex;
+      flex-direction: column;
     }
 
     #camera-container {
       position: relative;
       flex: 1;
       width: 100%;
-      height: calc(100vh - 140px);
       overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: center;
       z-index: 1;
-      touch-action: none;  /* 新增：避免觸控衝突 */
+      touch-action: none;
     }
 
     #camera {
@@ -247,10 +248,7 @@
     }
 
     .topbar {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
+      position: relative;
       display: flex;
       align-items: center;
       padding: 1rem;
@@ -258,6 +256,7 @@
       backdrop-filter: blur(10px);
       z-index: 40;
       border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
     }
 
     .spacer {
@@ -265,15 +264,13 @@
     }
 
     .bottombar {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
+      position: relative;
       padding: 1rem;
       background: rgba(0, 0, 0, 0.5);
       backdrop-filter: blur(10px);
       z-index: 40;
       border-top: 1px solid var(--border);
+      flex-shrink: 0;
     }
 
     .bar {
@@ -461,7 +458,7 @@
 
     <section id="start-screen" class="screen hidden">
       <div class="branding">
-        <h1>AR Overlay</h1>
+        <h1>AR 體驗 Demo</h1>
         <p>點擊下方按鈕開啟後置鏡頭</p>
       </div>
       <button id="btn-start" class="btn btn-primary big">
@@ -481,6 +478,10 @@
     </div>
 
     <section id="camera-screen" class="screen hidden">
+      <div class="topbar">
+        <div class="spacer"></div>
+      </div>
+
       <div id="camera-container">
         <video id="camera" playsinline autoplay muted></video>
         <img id="target-bg" src="./assets/target-image.jpg" alt="目標圖片" />
@@ -494,10 +495,6 @@
         <div id="scan-line"></div>
       </div>
 
-      <header class="topbar">
-        <div class="spacer"></div>
-      </header>
-
       <div id="status-tip" class="status-tip hidden">
         <span class="dot"></span>
         <span id="status-text">準備中...</span>
@@ -507,14 +504,14 @@
         <p>請將特定圖片（目標影像）置於鏡頭前方，保持穩定並有良好光線。掃描中...</p>
       </div>
 
-      <footer class="bottombar">
+      <div class="bottombar">
         <div class="bar">
           <button id="btn-capture" class="btn btn-primary">
             <span class="icon">⬇️</span> 截圖保存
           </button>
           <button id="btn-torch" class="btn icon-only" title="手電筒">🔦</button>
         </div>
-      </footer>
+      </div>
     </section>
 
     <div id="error-tip" class="hidden">
@@ -540,7 +537,7 @@
     import * as THREE from 'three';
     import { MindARThree } from 'mindar-image-three';
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';  // 新增：OrbitControls
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
     class ARApp {
       constructor() {
@@ -568,17 +565,17 @@
 
         this.trackerImageUrl = './assets/my-target.mind';
         this.targetImageUrl = './assets/target-image.jpg';
-        this.modelUrl = './assets/my-model.gltf';  // 改成你的 .gltf
+        this.modelUrl = './assets/my-model.gltf';
         this.overlayVideoSrc = this.overlayVideo.querySelector('source').src;
 
         this.startMindAR = null;
         this.isTorchOn = false;
         this.scene = null;
         this.renderer = null;
-        this.camera3D = null;  // Three.js camera
+        this.camera3D = null;
         this.anchor = null;
         this.modelGroup = null;
-        this.controls = null;  // 新增：OrbitControls
+        this.controls = null;
         this.testSphere = null;
         this.mixer = null;
         this.clock = new THREE.Clock();
@@ -711,7 +708,7 @@
         const start = new MindARThree({
           container: document.getElementById('camera-container'),
           imageTargetSrc: this.trackerImageUrl,
-          interpolationFactor: 0.03,  // 優化：降低抖動/負荷
+          interpolationFactor: 0.03,
           maxTrackLost: 5,
           uiLoading: false,
           uiScanning: '#status-tip',
@@ -722,19 +719,17 @@
         const { renderer, scene, camera: arCamera } = start;
         this.renderer = renderer;
         this.scene = scene;
-        this.camera3D = arCamera;  // 存 camera 給 controls
+        this.camera3D = arCamera;
 
-        // 效能優化
         renderer.powerPreference = 'high-performance';
         renderer.antialias = true;
         renderer.setClearColor(0x000000, 0);
-        renderer.setPixelRatio(window.devicePixelRatio * 0.8);  // 新增：降解析度減負荷
+        renderer.setPixelRatio(window.devicePixelRatio * 0.8);
 
         this.anchor = start.addAnchor(0);
         const group = new THREE.Group();
         this.anchor.group.add(group);
 
-        // 測試球
         const testGeometry = new THREE.SphereGeometry(0.05, 16, 16);
         const testMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
         this.testSphere = new THREE.Mesh(testGeometry, testMaterial);
@@ -742,21 +737,18 @@
         scene.add(this.testSphere);
         this.testSphere.visible = true;
 
-        // 模型群組
         this.modelGroup = new THREE.Group();
         group.add(this.modelGroup);
         this.modelGroup.visible = false;
 
-        // 新增：OrbitControls（轉動模型）
         this.controls = new OrbitControls(this.camera3D, renderer.domElement);
-        this.controls.enableDamping = true;  // 平滑
+        this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.05;
-        this.controls.enablePan = false;  // 禁平移
-        this.controls.enableZoom = false;  // 禁縮放（AR 固定）
-        this.controls.target.set(0, 0, 0);  // 轉動中心
-        this.controls.enabled = false;  // 初始停用
+        this.controls.enablePan = false;
+        this.controls.enableZoom = false;
+        this.controls.target.set(0, 0, 0);
+        this.controls.enabled = false;
 
-        // 載入模型
         const loader = new GLTFLoader();
         loader.load(
           this.modelUrl,
@@ -765,7 +757,6 @@
             const model = gltf.scene;
             this.modelGroup.add(model);
 
-            // 預載紋理（優化卡頓）
             model.traverse((child) => {
               if (child.isMesh && child.material.map) {
                 this.renderer.initTexture(child.material.map);
@@ -819,9 +810,8 @@
             this.overlayVideo.style.transform = 'translate(-50%, -50%) translateY(0) scale(1)';
             
             this.modelGroup.visible = true;
-            this.modelGroup.rotation.y += 0.01;  // 自動旋轉（可關閉）
+            this.modelGroup.rotation.y += 0.01;
             
-            // 新增：啟用 controls 轉動
             this.controls.enabled = true;
 
             this.updateStatus('目標找到！拖拉轉動模型（+綠色測試球）');
@@ -840,14 +830,12 @@
             this.modelGroup.visible = false;
             this.modelGroup.rotation.set(0, 0, 0);
             
-            // 停用 controls
             this.controls.enabled = false;
 
             this.popStartTime = 0;
             this.updateStatus('尋找特定圖片...（綠色小球應一直顯示）');
           }
 
-          // 更新 controls
           if (this.controls.enabled) {
             this.controls.update();
           }
@@ -874,22 +862,32 @@
       }
 
       captureScreenshot() {
+        const videoWidth = this.camera.videoWidth;
+        const videoHeight = this.camera.videoHeight;
         const ctx = this.captureCanvas.getContext('2d');
-        this.captureCanvas.width = this.camera.videoWidth;
-        this.captureCanvas.height = this.camera.videoHeight;
-        ctx.drawImage(this.camera, 0, 0);
+        this.captureCanvas.width = videoWidth;
+        this.captureCanvas.height = videoHeight;
 
+        // 繪製相機視頻
+        ctx.drawImage(this.camera, 0, 0, videoWidth, videoHeight);
+
+        // 如果 AR 已偵測，繪製 Three.js 渲染的 canvas
         if (this.renderer && this.isTargetDetected) {
-          const gl = this.renderer.getContext();
-          const pixels = new Uint8Array(this.captureCanvas.width * this.captureCanvas.height * 4);
-          gl.readPixels(0, 0, this.captureCanvas.width, this.captureCanvas.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
-          const imageData = new ImageData(new Uint8ClampedArray(pixels.buffer), this.captureCanvas.width, this.captureCanvas.height);
-          ctx.putImageData(imageData, 0, 0);
+          const threeCanvas = this.renderer.domElement;
+          if (threeCanvas) {
+            ctx.drawImage(threeCanvas, 0, 0, videoWidth, videoHeight);
+          }
         }
 
-        if (!this.overlayContainer.classList.contains('hidden')) {
+        // 繪製 overlay video（如果可見）
+        if (!this.overlayContainer.classList.contains('hidden') && !this.overlayVideo.classList.contains('hidden')) {
           const rect = this.overlayVideo.getBoundingClientRect();
-          ctx.drawImage(this.overlayVideo, rect.left, rect.top, rect.width, rect.height);
+          const containerRect = this.cameraContainer.getBoundingClientRect();
+          const x = (rect.left - containerRect.left) * (videoWidth / containerRect.width);
+          const y = (rect.top - containerRect.top) * (videoHeight / containerRect.height);
+          const w = rect.width * (videoWidth / containerRect.width);
+          const h = rect.height * (videoHeight / containerRect.height);
+          ctx.drawImage(this.overlayVideo, x, y, w, h);
         }
 
         this.captureCanvas.toBlob((blob) => {
