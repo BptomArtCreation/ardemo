@@ -440,6 +440,16 @@
       z-index: 100;
       max-width: 90%;
     }
+
+    /* 新增：確保 Three.js canvas 覆蓋 video */
+    #camera-container canvas {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      z-index: 3 !important;  /* 高於 video 的 z-index 1 */
+    }
   </style>
 </head>
 <body>
@@ -567,7 +577,8 @@
         this.scene = null;
         this.renderer = null;
         this.anchor = null;
-        this.sphere = null;
+        this.sphere = null;  // AR 觸發球
+        this.testSphere = null;  // 新增：測試球，總是顯示
         this.popStartTime = 0;
         this.isTargetDetected = false;
 
@@ -682,7 +693,7 @@
           // MindAR 初始化（失敗不影響畫面顯示）
           try {
             this.startMindAR = await this.initMindAR();
-            this.updateStatus('掃描特定圖片以顯示 3D 圓球...');
+            this.updateStatus('掃描特定圖片以顯示 3D 圓球...（檢查綠色小球是否顯示）');
             this.scanLine.style.display = 'block';
           } catch (mindarErr) {
             console.error('MindAR 初始化失敗:', mindarErr);
@@ -701,11 +712,11 @@
         const start = new MindARThree({
           container: document.getElementById('camera-container'),
           imageTargetSrc: this.trackerImageUrl,
-          interpolationFactor: 0.075,
-          maxTrackLost: 1,
+          interpolationFactor: 0.05,  // 調整：降低以減少抖動
+          maxTrackLost: 5,  // 調整：增加容錯
           uiLoading: false,
           uiScanning: '#status-tip',
-          filterMinCF: 0.001,
+          filterMinCF: 0.1,  // 調整：提高以改善偵測
           filterBeta: 0.01
         });
 
@@ -715,28 +726,36 @@
 
         renderer.powerPreference = 'high-performance';
         renderer.antialias = true;
+        renderer.setClearColor(0x000000, 0);  // 調整：透明背景，讓 video 透出
 
         this.anchor = start.addAnchor(0);
         const group = new THREE.Group();
         this.anchor.group.add(group);
 
-        // 3D 圓球（測試用，顏色改為藍色更明顯，大小放大）
-        const geometry = new THREE.SphereGeometry(0.2, 32, 32);  // 半徑從 0.1 改為 0.2
-        const material = new THREE.MeshBasicMaterial({ color: 0x0000ff });  // 改為藍色
-        this.sphere = new THREE.Mesh(geometry, material);
+        // AR 觸發球（藍色，大）
+        const arGeometry = new THREE.SphereGeometry(0.2, 32, 32);
+        const arMaterial = new THREE.MeshBasicMaterial({ color: 0x0000ff });
+        this.sphere = new THREE.Mesh(arGeometry, arMaterial);
         group.add(this.sphere);
+        this.sphere.visible = false;
 
-        // 暫時移除 PNG 平面，只用圓球測試
-        // this.overlayPlane = null;
+        // 新增：測試球（綠色，小，總是顯示在畫面中央，確認 renderer 工作）
+        const testGeometry = new THREE.SphereGeometry(0.05, 16, 16);
+        const testMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        this.testSphere = new THREE.Mesh(testGeometry, testMaterial);
+        this.testSphere.position.set(0, 0, -0.5);  // 固定位置在中央前方
+        scene.add(this.testSphere);  // 加到 scene，非 anchor
+        this.testSphere.visible = true;
 
-        // 位置調整：讓圓球更靠近鏡頭
-        group.position.set(0, 0, -0.1);  // 更靠近
-        this.sphere.scale.set(2.0, 2.0, 2.0);  // 放大到 2.0 倍
-        this.sphere.visible = false;  // 初始隱藏
+        // 調整：AR 球位置前移
+        group.position.set(0, 0, 0.1);  // Z 正值，讓它在前
+        this.sphere.scale.set(2.0, 2.0, 2.0);
+
+        console.log('MindAR 初始化完成，測試綠球應立即顯示');
 
         renderer.setAnimationLoop(() => {
           if (this.anchor.visible) {
-            console.log('偵測成功：顯示 3D 圓球');  
+            console.log('偵測成功：顯示藍色 AR 球');
             if (!this.isTargetDetected) {
               this.isTargetDetected = true;
               this.scanTip.classList.add('hide');
@@ -746,14 +765,14 @@
             this.overlayContainer.classList.remove('hidden');
             this.overlayVideo.style.transform = 'translate(-50%, -50%) translateY(0) scale(1)';
             
-            // 顯示圓球（簡單旋轉動畫，方便確認）
+            // 顯示 AR 球
             this.sphere.visible = true;
-            this.sphere.rotation.y += 0.02;  // 輕微旋轉
+            this.sphere.rotation.y += 0.02;
             
-            this.updateStatus('目標找到！藍色 3D 圓球應明顯可見（檢查控制台）');
+            this.updateStatus('目標找到！藍色 AR 球 + 綠色測試球應可見');
             this.popStartTime = 0;  
           } else {
-            console.log('未偵測：隱藏 3D 圓球');  
+            console.log('未偵測：隱藏藍色 AR 球');
             if (this.isTargetDetected) {
               this.isTargetDetected = false;
               this.scanTip.classList.remove('hidden', 'hide');
@@ -763,13 +782,17 @@
             this.overlayContainer.classList.add('hidden');
             this.overlayVideo.style.transform = 'translate(-50%, -50%) translateY(100%) scale(0.8)';
             
-            // 隱藏圓球
+            // 隱藏 AR 球
             this.sphere.visible = false;
             this.sphere.rotation.set(0, 0, 0);
             
             this.popStartTime = 0;
-            this.updateStatus('尋找特定圖片...');
+            this.updateStatus('尋找特定圖片...（綠色小球應一直顯示）');
           }
+
+          // 測試球輕微旋轉，確認渲染循環
+          this.testSphere.rotation.y += 0.01;
+
           renderer.render(scene, camera);
         });
 
