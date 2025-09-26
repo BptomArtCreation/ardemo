@@ -9,7 +9,6 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <title>AR Overlay Demo</title>
   <style>
-    /* 原有樣式保持不變，省略以節省空間 */
     :root {
       --bg-primary: #13151a;
       --bg-secondary: #1e2127;
@@ -28,7 +27,6 @@
       box-sizing: border-box;
     }
 
-    /* 新增：全局重置，確保跨瀏覽器一致（normalize 風格） */
     html {
       line-height: 1.15;
       -webkit-text-size-adjust: 100%;
@@ -42,7 +40,6 @@
       touch-action: manipulation;
       -webkit-user-select: none;
       user-select: none;
-      /* 新增：移除 iOS 觸摸高亮 */
       -webkit-tap-highlight-color: transparent;
     }
 
@@ -110,10 +107,10 @@
       transition: var(--transition);
       min-height: 3rem;
       touch-action: manipulation;
-      /* 新增：重置 iOS Safari 預設樣式，確保跨平台一致 */
       appearance: none;
       -webkit-appearance: none;
       -webkit-tap-highlight-color: transparent;
+      pointer-events: auto; /* 新增：確保按鈕可點擊 */
     }
 
     .btn-primary {
@@ -181,8 +178,6 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
-      /* transform: scaleX(-1); 已移除，取消鏡頭反轉 */
-      display: none;  /* 新增：隱藏 video 元素，因為 texture 會在 canvas 上顯示 feed */
     }
 
     #overlay-container {
@@ -201,12 +196,10 @@
       max-height: 100%;
       object-fit: contain;
       pointer-events: auto;
-      /* 修改範例：疊加圖片/影片偏移 20% 從左上 */
       left: 20%;
       top: 20%;
-      /* 修改：Y 軸彈出動畫（從下往上彈出，初始 translateY(100%)） */
-      transform: translateY(100%);  /* 初始在下方 */
-      transition: transform 1s cubic-bezier(0.68, -0.55, 0.265, 1.55);  /* 彈出曲線 */
+      transform: translateY(100%);
+      transition: transform 1s cubic-bezier(0.68, -0.55, 0.265, 1.55);
     }
 
     #overlay-video.hidden,
@@ -318,7 +311,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 100;
+      z-index: 1000; /* 提高 z-index 確保頂層 */
+      pointer-events: auto; /* 新增：確保可互動 */
     }
 
     #permission-dialog.hidden {
@@ -332,6 +326,7 @@
       text-align: center;
       max-width: 90%;
       box-shadow: var(--shadow);
+      pointer-events: auto; /* 新增：確保內容可點擊 */
     }
 
     .dialog-content h2 {
@@ -348,7 +343,7 @@
     @media (max-width: 480px) {
       .bar {
         flex-direction: column;
-        gap: 0.75rem;  /* 優化：小螢幕按鈕間距，避免 iOS 觸摸誤觸 */
+        gap: 0.75rem;
       }
 
       .btn {
@@ -472,7 +467,6 @@
   <canvas id="proc-canvas" class="hidden"></canvas>
   <canvas id="capture-canvas" class="hidden"></canvas>
 
-  <!-- MindAR ESM 載入 -->
   <script type="importmap">
   {
     "imports": {
@@ -514,8 +508,7 @@
         this.btnSettings = document.getElementById('btn-settings');
         this.scanLine = document.getElementById('scan-line');
 
-        // 修改：使用本地 assets 資料夾的 .mind 檔案（替換為您的檔案名）
-        this.trackerImageUrl = './assets/my-target.mind';  // 範例：替換為您的 .mind 檔案，如 'your-target.mind'
+        this.trackerImageUrl = './assets/my-target.mind';  // 替換為您的 .mind 檔案
         this.overlayImageSrc = this.overlayImage.src;
         this.overlayVideoSrc = this.overlayVideo.querySelector('source').src;
 
@@ -524,10 +517,9 @@
         this.isTorchOn = false;
         this.scene = null;
         this.renderer = null;
-        this.anchor = null; // 新增：儲存 anchor 以檢查 visible
-        this.sphere = null;  // 新增：儲存 3D 物件引用，用於動畫
-        this.popStartTime = 0;  // 新增：彈出計時器
-        this.videoTexture = null;  // 新增：儲存 VideoTexture 引用
+        this.anchor = null;
+        this.sphere = null;
+        this.popStartTime = 0;
 
         this.hideLoading();
         setTimeout(() => this.hideLoading(), 5000);
@@ -551,18 +543,11 @@
           this.showError('相機初始化失敗');
         });
 
-        // 新增：驗證 video 狀態的監聽器（除錯用）
         this.camera.addEventListener('loadedmetadata', () => {
           console.log('Video metadata loaded, dimensions:', this.camera.videoWidth, 'x', this.camera.videoHeight);
         });
         this.camera.addEventListener('play', () => {
           console.log('Video started playing');
-          if (this.videoTexture) {
-            this.videoTexture.needsUpdate = true;  // 強制更新 texture
-          }
-        });
-        this.camera.addEventListener('canplay', () => {
-          console.log('Video can play');
         });
 
         document.addEventListener('visibilitychange', () => {
@@ -594,14 +579,7 @@
           const videoDevices = devices.filter(d => d.kind === 'videoinput');
           if (videoDevices.length === 0) throw new Error('無可用相機');
 
-          // 修改：請求最高權限，包括 audio（即使 muted），以確保 mobile 相容
-          const constraints = {
-            video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-            audio: true  // 新增：請求 audio 權限，雖然不使用，但有助 mobile 穩定
-          };
-          const stream = await navigator.mediaDevices.getUserMedia(constraints);
-          stream.getTracks().forEach(track => track.stop());
-
+          // 修改：移除 getUserMedia 測試，只顯示對話框，避免重複提示
           this.showPermissionDialog();
         } catch (err) {
           console.error('權限錯誤:', err);
@@ -627,28 +605,22 @@
       async initCamera() {
         try {
           this.updateStatus('初始化相機...');
+          // 修改：權限檢查移到這裡，只調用一次 getUserMedia
           let constraints = { 
             video: { facingMode: 'environment' }, 
-            audio: true  // 保持 audio 請求
+            audio: false 
           };
           let stream;
           try {
             stream = await navigator.mediaDevices.getUserMedia(constraints);
           } catch {
-            // Fallback：無 facingMode，請求所有可用
-            constraints = { video: true, audio: true };
+            constraints = { video: true };
             stream = await navigator.mediaDevices.getUserMedia(constraints);
           }
 
           this.camera.srcObject = stream;
-          this.camera.muted = true;  // 確保 muted
-          await this.camera.play();  // 強制 play，在 user gesture 內
-
-          // 新增：請求全螢幕模式（最高權限，改善 AR 體驗）
-          if (document.documentElement.requestFullscreen) {
-            await document.documentElement.requestFullscreen();
-            console.log('全螢幕模式啟動');
-          }
+          this.camera.muted = true;
+          await this.camera.play();
 
           this.startMindAR = await this.initMindAR();
           if (!this.startMindAR) throw new Error('MindAR 初始化失敗');
@@ -683,76 +655,51 @@
         this.renderer = renderer;
         this.scene = scene;
 
-        // 新增：優化 renderer 設定，針對 mobile/Android 黑屏問題
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.powerPreference = 'high-performance';  // 針對 Android 效能
-        renderer.antialias = true;  // 改善畫質
+        renderer.powerPreference = 'high-performance';
+        renderer.antialias = true;
         this.arCanvas.width = window.innerWidth;
         this.arCanvas.height = window.innerHeight;
         renderer.domElement = this.arCanvas;
 
-        // 新增：將 video feed 作為 texture 設定為 scene background，讓 AR canvas 顯示相機影像
-        // 確保 video 已 ready
-        if (this.camera.readyState === 0) {
-          await new Promise(resolve => {
-            this.camera.addEventListener('loadeddata', resolve, { once: true });
-          });
-        }
-        this.videoTexture = new THREE.VideoTexture(this.camera);
-        this.videoTexture.minFilter = THREE.LinearFilter;  // 避免紋理模糊（可選，優化畫質）
-        this.videoTexture.needsUpdate = true;  // 強制更新
-        scene.background = this.videoTexture;
+        // 修改：移除 VideoTexture 設定，讓 MindAR 內部處理 camera feed 顯示
+        // MindAR 會自動將 camera 作為 background 渲染
 
-        // 添加錨點和示例物件（修改範例：紅色球體 + Y 軸彈出）
         this.anchor = start.addAnchor(0);
         const group = new THREE.Group();
         this.anchor.group.add(group);
 
-        // 修改：換成球體，紅色
-        const geometry = new THREE.SphereGeometry(0.1, 32, 32);  // 球體半徑 0.1m
-        const material = new THREE.MeshBasicMaterial({ 
-          color: 0xff0000  // 紅色
-        });
-        this.sphere = new THREE.Mesh(geometry, material);  // 儲存引用
+        const geometry = new THREE.SphereGeometry(0.1, 32, 32);
+        const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        this.sphere = new THREE.Mesh(geometry, material);
         group.add(this.sphere);
 
-        // 修改：調整位置（Y 軸上移 1 單位，靠近圖片頂部）
-        group.position.set(0, 1, -0.5);  // Y=1
-
-        // 修改：調整大小（放大 1.5 倍）
+        group.position.set(0, 1, -0.5);
         this.sphere.scale.set(1.5, 1.5, 1.5);
 
-        // 修復：使用 animation loop 檢查 anchor.visible 來偵測目標
         renderer.setAnimationLoop(() => {
-          // 新增：每幀更新 texture（針對 mobile 問題）
-          if (this.videoTexture && this.camera.readyState > 0) {
-            this.videoTexture.needsUpdate = true;
-          }
           if (this.anchor.visible) {
             this.overlayContainer.classList.remove('hidden');
-            // 修改：2D 疊加 Y 軸彈出（CSS 處理，從 translateY(100%) 到 0）
-            this.overlayImage.style.transform = 'translateY(0)';  // 彈出到原位
+            this.overlayImage.style.transform = 'translateY(0)';
             this.overlayVideo.style.transform = 'translateY(0)';
             
-            // 新增：3D Y 軸彈出動畫（從 scaleY(0) 到 1，每幀增加）
             if (this.popStartTime === 0) {
-              this.popStartTime = Date.now();  // 開始計時
-              this.sphere.scale.y = 0;  // 初始 Y 壓扁
+              this.popStartTime = Date.now();
+              this.sphere.scale.y = 0;
             }
-            const elapsed = (Date.now() - this.popStartTime) / 1000;  // 秒數
-            this.sphere.scale.y = Math.min(elapsed * 2, 1);  // 彈出，0.5 秒完成（調整 *2 為速度）
+            const elapsed = (Date.now() - this.popStartTime) / 1000;
+            this.sphere.scale.y = Math.min(elapsed * 2, 1);
             
-            // 修改：加旋轉動畫
-            this.sphere.rotation.y += 0.01;  // 每幀旋轉 0.01 弧度
+            this.sphere.rotation.y += 0.01;
             this.updateStatus('目標找到！');
-            console.log('彈出觸發！');  // Debug：Console 確認觸發
+            console.log('彈出觸發！');
           } else {
             this.overlayContainer.classList.add('hidden');
-            this.overlayImage.style.transform = 'translateY(100%)';  // 重置 2D 位置
+            this.overlayImage.style.transform = 'translateY(100%)';
             this.overlayVideo.style.transform = 'translateY(100%)';
-            this.sphere.scale.y = 1.5;  // 重置 3D scale（原大小）
-            this.popStartTime = 0;  // 重置計時器
+            this.sphere.scale.y = 1.5;
+            this.popStartTime = 0;
             this.updateStatus('尋找特定圖片...');
           }
           renderer.render(scene, camera);
@@ -792,7 +739,6 @@
           this.startMindAR.stop();
         }
         this.updateStatus('切換 AR.js 模式...');
-        // 未來擴展
       }
 
       openSettings() {
@@ -815,7 +761,6 @@
           const filename = `ar-screenshot-${Date.now()}.png`;
           const file = new File([blob], filename, { type: 'image/png' });
 
-          // 新增：嘗試使用 Web Share API 分享（優先存相簿）
           if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
             navigator.share({
               title: 'AR 截圖',
@@ -823,21 +768,18 @@
               files: [file]
             }).then(() => {
               console.log('分享成功');
-              // 優化：iOS 提示分享到照片 App
               const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
               this.updateStatus(isIOS ? '已分享！在選單選擇「照片」存相簿' : '截圖已分享，可存到相簿！');
             }).catch((err) => {
               console.warn('分享失敗，回退下載:', err);
-              this.downloadFallback(blob, filename);  // Fallback 到下載
+              this.downloadFallback(blob, filename);
             });
           } else {
-            // Fallback：原下載邏輯
             this.downloadFallback(blob, filename);
           }
         }, 'image/png');
       }
 
-      // 新增輔助方法：下載 fallback
       downloadFallback(blob, filename) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
