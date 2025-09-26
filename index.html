@@ -164,12 +164,12 @@
       position: relative;
       flex: 1;
       width: 100%;
-      height: calc(100vh - 140px);  /* 新增：扣除 topbar + bottombar 高度，避免遮蓋 */
+      height: calc(100vh - 140px);
       overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 1;  /* 降低 z-index，讓 bars 浮在上層 */
+      z-index: 1;
     }
 
     #camera {
@@ -179,6 +179,25 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
+      z-index: 1;  /* 確保 video 在最底 */
+    }
+
+    #target-bg {  /* 新增：目標圖片背景樣式 */
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      opacity: 0.2;  /* 20% 透明度 */
+      z-index: 2;  /* 高於 video，低於 overlay */
+      display: none;  /* 初始隱藏 */
+      animation: pulse 2s infinite;  /* 輕微脈動以強調掃描 */
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.2; }
+      50% { opacity: 0.3; }
     }
 
     #overlay-container {
@@ -188,7 +207,7 @@
       width: 100%;
       height: 100%;
       pointer-events: none;
-      z-index: 5;  /* 疊加層級：video < overlay < bars */
+      z-index: 5;
     }
 
     #overlay-image,
@@ -238,7 +257,7 @@
       padding: 1rem;
       background: rgba(0, 0, 0, 0.5);
       backdrop-filter: blur(10px);
-      z-index: 30;  /* 提高 z-index，確保按鈕可見 */
+      z-index: 40;  /* 進一步提高 z-index，確保頂層 */
       border-bottom: 1px solid var(--border);
     }
 
@@ -254,7 +273,7 @@
       padding: 1rem;
       background: rgba(0, 0, 0, 0.5);
       backdrop-filter: blur(10px);
-      z-index: 30;  /* 提高 z-index，確保按鈕可見 */
+      z-index: 40;  /* 進一步提高 z-index，確保頂層 */
       border-top: 1px solid var(--border);
     }
 
@@ -278,10 +297,10 @@
       border-radius: var(--radius);
       font-size: 0.875rem;
       color: var(--text-secondary);
-      z-index: 25;  /* 高於 container，低於 bars */
+      z-index: 25;
     }
 
-    .scan-tip {  /* 新增：掃描提示樣式 */
+    .scan-tip {
       position: absolute;
       bottom: 8rem;
       left: 50%;
@@ -442,6 +461,7 @@
     <section id="camera-screen" class="screen hidden">
       <div id="camera-container">
         <video id="camera" playsinline autoplay muted></video>
+        <img id="target-bg" src="./assets/target-image.jpg" alt="目標圖片" />  <!-- 新增：目標圖片背景，替換 src 為您的原始圖片路徑 -->
 
         <div id="overlay-container" aria-hidden="true" class="hidden">
           <img id="overlay-image" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMDBkNGZmIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7vv70g5Lit5b+DPC90ZXh0Pjwvc3ZnPg==" alt="預設疊加圖片" />
@@ -465,7 +485,7 @@
         <span id="status-text">準備中...</span>
       </div>
 
-      <div id="scan-tip" class="scan-tip hidden">  <!-- 新增：掃描提示元素 -->
+      <div id="scan-tip" class="scan-tip hidden">
         <p>請將特定圖片（目標影像）置於鏡頭前方，保持穩定並有良好光線。掃描中...</p>
       </div>
 
@@ -511,12 +531,13 @@
         this.errorTip = document.getElementById('error-tip');
         this.errorText = document.getElementById('error-text');
         this.camera = document.getElementById('camera');
+        this.targetBg = document.getElementById('target-bg');  // 新增：目標背景引用
         this.overlayContainer = document.getElementById('overlay-container');
         this.overlayImage = document.getElementById('overlay-image');
         this.overlayVideo = document.getElementById('overlay-video');
         this.statusTip = document.getElementById('status-tip');
         this.statusText = document.getElementById('status-text');
-        this.scanTip = document.getElementById('scan-tip');  // 新增：掃描提示引用
+        this.scanTip = document.getElementById('scan-tip');
         this.procCanvas = document.getElementById('proc-canvas');
         this.captureCanvas = document.getElementById('capture-canvas');
         this.btnStart = document.getElementById('btn-start');
@@ -530,6 +551,7 @@
         this.scanLine = document.getElementById('scan-line');
 
         this.trackerImageUrl = './assets/my-target.mind';  // 替換為您的 .mind 檔案
+        this.targetImageUrl = './assets/target-image.jpg';  // 新增：原始目標圖片路徑，用於背景顯示
         this.overlayImageSrc = this.overlayImage.src;
         this.overlayVideoSrc = this.overlayVideo.querySelector('source').src;
 
@@ -646,8 +668,10 @@
           this.cameraScreen.classList.remove('hidden');
           this.startScreen.classList.add('hidden');
 
-          // 顯示掃描提示
+          // 顯示掃描提示和目標背景圖片
           this.scanTip.classList.remove('hidden');
+          this.targetBg.style.display = 'block';  // 顯示半透明目標圖片
+          this.targetBg.src = this.targetImageUrl;  // 設定 src
 
           // MindAR 初始化（失敗不影響畫面顯示）
           try {
@@ -657,7 +681,7 @@
           } catch (mindarErr) {
             console.error('MindAR 初始化失敗:', mindarErr);
             this.updateStatus('AR 載入失敗，但相機已啟動。請檢查 .mind 檔案。', 'error');
-            // 保持提示顯示
+            // 保持提示和背景顯示
           }
 
         } catch (err) {
