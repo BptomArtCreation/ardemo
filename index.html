@@ -113,6 +113,7 @@
       -webkit-appearance: none;
       -webkit-tap-highlight-color: transparent;
       pointer-events: auto;
+      flex-shrink: 0; /* 新增：防止按鈕在窄空間縮小 */
     }
 
     .btn-primary {
@@ -392,13 +393,21 @@
 
     @media (max-width: 480px) {
       .bar {
-        flex-direction: column;
+        flex-direction: row; /* 修改：強制水平排列，取代原 column */
+        flex-wrap: wrap; /* 新增：如果空間不足，自動換行 */
         gap: 0.75rem;
+        justify-content: center; /* 確保居中 */
       }
 
       .btn {
-        width: 100%;
+        flex: 1; /* 修改：讓按鈕自動調整寬度，但最小 100% 失效 */
+        min-width: auto; /* 新增：允許縮小以適應 row */
+        max-width: none;
         justify-content: center;
+      }
+
+      .btn.icon-only {
+        flex: 0 0 auto; /* 新增：圖示按鈕不伸縮，保持固定大小 */
       }
     }
 
@@ -849,7 +858,7 @@
             this.overlayVideo.style.transform = 'translate(-50%, -50%) translateY(0) scale(1)';
             
             this.modelGroup.visible = true;
-            this.modelGroup.rotation.y += 0.01;
+            this.modelGroup.rotation.y += 0.5 * delta; /* 修改：基於 delta 的順暢旋轉（約 28.6 度/秒） */
             
             this.controls.enabled = true;
 
@@ -913,7 +922,7 @@
             this.controls.update();
           }
 
-          this.testSphere.rotation.y += 0.01;
+          this.testSphere.rotation.y += 0.5 * delta; /* 修改：基於 delta 的順暢旋轉，與模型同步 */
 
           renderer.render(scene, this.camera3D);
         });
