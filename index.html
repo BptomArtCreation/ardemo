@@ -58,7 +58,7 @@
       width: 100%;
       height: 100%;
       display: flex;
-      flex-direction:  column;
+      flex-direction: column;
       justify-content: center;
       align-items: center;
       background: linear-gradient(135deg, var(--bg-primary), var(--bg-secondary));
@@ -488,7 +488,6 @@
         <button id="btn-torch" class="btn icon-only" title="手電筒">🔦</button>
         <div class="spacer"></div>
         <button id="btn-switch-content" class="btn" title="切換疊加（圖/影片）">切換疊加</button>
-        <button id="btn-settings" class="btn icon-only" title="設定">⚙️</button>
       </header>
 
       <div id="status-tip" class="status-tip hidden">
@@ -555,7 +554,6 @@
         this.btnCapture = document.getElementById('btn-capture');
         this.btnSwitchContent = document.getElementById('btn-switch-content');
         this.btnTorch = document.getElementById('btn-torch');
-        this.btnSettings = document.getElementById('btn-settings');
         this.scanLine = document.getElementById('scan-line');
 
         this.trackerImageUrl = './assets/my-target.mind';
@@ -570,7 +568,6 @@
         this.renderer = null;
         this.anchor = null;
         this.sphere = null;
-        this.overlayPlane = null;  // 新增：3D Plane 引用
         this.popStartTime = 0;
         this.isTargetDetected = false;
 
@@ -587,7 +584,6 @@
         this.btnCapture.addEventListener('click', () => this.captureScreenshot());
         this.btnSwitchContent.addEventListener('click', () => this.toggleOverlayContent());
         this.btnTorch.addEventListener('click', () => this.toggleTorch());
-        this.btnSettings.addEventListener('click', () => this.openSettings());
 
         this.camera.addEventListener('error', (e) => {
           console.error('Camera error:', e);
@@ -686,7 +682,7 @@
           // MindAR 初始化（失敗不影響畫面顯示）
           try {
             this.startMindAR = await this.initMindAR();
-            this.updateStatus('掃描特定圖片以顯示疊加...');
+            this.updateStatus('掃描特定圖片以顯示 3D 圓球...');
             this.scanLine.style.display = 'block';
           } catch (mindarErr) {
             console.error('MindAR 初始化失敗:', mindarErr);
@@ -724,57 +720,23 @@
         const group = new THREE.Group();
         this.anchor.group.add(group);
 
-        // 保留紅色球體（用來測試 3D 渲染是否正常）
-        const geometry = new THREE.SphereGeometry(0.1, 32, 32);
-        const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        // 3D 圓球（測試用，顏色改為藍色更明顯，大小放大）
+        const geometry = new THREE.SphereGeometry(0.2, 32, 32);  // 半徑從 0.1 改為 0.2
+        const material = new THREE.MeshBasicMaterial({ color: 0x0000ff });  // 改為藍色
         this.sphere = new THREE.Mesh(geometry, material);
         group.add(this.sphere);
 
-        // 大幅度調整：3D Plane 用於疊加 my-overlay.png
-        // 調整1: 平面大小從 0.5x0.5 改為 2.0x2.0（大幅放大，方便測試）
-        const planeGeometry = new THREE.PlaneGeometry(2.0, 2.0);
-        // 調整2: 強制使用簡單顏色材質先測試渲染（綠色背景 + 文字提示），之後再載入 PNG
-        // 如果 PNG 載入失敗，會 fallback 到綠色平面
-        const planeMaterial = new THREE.MeshBasicMaterial({ 
-          color: 0x00ff00,  // 臨時綠色，方便一眼看到
-          transparent: true,
-          side: THREE.DoubleSide,
-          opacity: 0.8  // 調整3: 增加不透明度，避免太透明看不見
-        });
-        // 嘗試載入 PNG 紋理
-        const loader = new THREE.TextureLoader();
-        loader.load(
-          this.overlayImageSrc,
-          (texture) => {
-            console.log('Overlay PNG 紋理載入成功！');
-            planeMaterial.map = texture;
-            planeMaterial.needsUpdate = true;  // 強制更新材質
-          },
-          (progress) => {
-            console.log('載入進度:', (progress.loaded / progress.total * 100) + '%');
-          },
-          (error) => {
-            console.error('載入 my-overlay.png 失敗:', error);
-            console.log('使用綠色 fallback 平面進行測試');
-            // 調整4: 如果失敗，保持綠色並顯示警告狀態
-            this.updateStatus('PNG 載入失敗，使用測試綠色平面', 'error');
-          }
-        );
-        this.overlayPlane = new THREE.Mesh(planeGeometry, planeMaterial);
-        group.add(this.overlayPlane);  // 加到錨點群組，精確 3D 定位
+        // 暫時移除 PNG 平面，只用圓球測試
+        // this.overlayPlane = null;
 
-        // 調整5: 初始位置大幅前移（從 -0.01 改為 0），並調整 group 位置讓它更靠近鏡頭
-        this.overlayPlane.position.set(0, 0, 0);
-        this.overlayPlane.visible = false;  // 初始隱藏
-        // 調整6: group 位置調整為更靠近（從 (0,1,-0.5) 改為 (0,0,-0.2)），避免太遠
-        group.position.set(0, 0, -0.2);
-
-        // 調整7: 球體放大（從 1.5 改為 3.0），方便測試是否偵測成功
-        this.sphere.scale.set(3.0, 3.0, 3.0);
+        // 位置調整：讓圓球更靠近鏡頭
+        group.position.set(0, 0, -0.1);  // 更靠近
+        this.sphere.scale.set(2.0, 2.0, 2.0);  // 放大到 2.0 倍
+        this.sphere.visible = false;  // 初始隱藏
 
         renderer.setAnimationLoop(() => {
           if (this.anchor.visible) {
-            console.log('偵測成功：顯示 overlay');  // 調整8: 添加 console.log 方便開發者工具檢查
+            console.log('偵測成功：顯示 3D 圓球');  
             if (!this.isTargetDetected) {
               this.isTargetDetected = true;
               this.scanTip.classList.add('hide');
@@ -784,19 +746,14 @@
             this.overlayContainer.classList.remove('hidden');
             this.overlayVideo.style.transform = 'translate(-50%, -50%) translateY(0) scale(1)';
             
-            // 調整9: 移除彈出動畫，直接全尺寸顯示（scale 固定為 1.5 放大，方便測試）
-            this.overlayPlane.visible = true;
-            this.overlayPlane.scale.set(1.5, 1.5, 1.5);  // 固定放大 1.5 倍
-            this.overlayPlane.rotation.y = 0;  // 移除旋轉，保持靜止
+            // 顯示圓球（簡單旋轉動畫，方便確認）
+            this.sphere.visible = true;
+            this.sphere.rotation.y += 0.02;  // 輕微旋轉
             
-            // 球體也固定顯示（無動畫）
-            this.sphere.scale.set(3.0, 3.0, 3.0);
-            this.sphere.rotation.y = 0;
-            
-            this.updateStatus('目標找到！綠色/ PNG 平面應明顯可見（檢查控制台）');
-            this.popStartTime = 0;  // 重置計時器
+            this.updateStatus('目標找到！藍色 3D 圓球應明顯可見（檢查控制台）');
+            this.popStartTime = 0;  
           } else {
-            console.log('未偵測：隱藏 overlay');  // 調整10: 添加 log
+            console.log('未偵測：隱藏 3D 圓球');  
             if (this.isTargetDetected) {
               this.isTargetDetected = false;
               this.scanTip.classList.remove('hidden', 'hide');
@@ -806,12 +763,10 @@
             this.overlayContainer.classList.add('hidden');
             this.overlayVideo.style.transform = 'translate(-50%, -50%) translateY(100%) scale(0.8)';
             
-            // 隱藏 Plane
-            this.overlayPlane.visible = false;
-            this.overlayPlane.scale.set(1, 1, 1);  // 重置
+            // 隱藏圓球
+            this.sphere.visible = false;
+            this.sphere.rotation.set(0, 0, 0);
             
-            // 重置球體
-            this.sphere.scale.set(3.0, 3.0, 3.0);
             this.popStartTime = 0;
             this.updateStatus('尋找特定圖片...');
           }
@@ -846,10 +801,6 @@
         } catch (e) {
           console.warn('手電筒不支持:', e);
         }
-      }
-
-      openSettings() {
-        alert('設定：\n- 調整亮度\n- 選擇追蹤圖片\n- 未來 3D 選項');
       }
 
       captureScreenshot() {
