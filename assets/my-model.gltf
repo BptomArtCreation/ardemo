@@ -16,10 +16,10 @@
 	"nodes":[
 		{
 			"mesh":0,
-			"name":"Mesh_0",
+			"name":"Mesh_0.001",
 			"translation":[
 				0,
-				-8.814945220947266,
+				-8.04682731628418,
 				0
 			]
 		},
@@ -134,7 +134,7 @@
 	],
 	"meshes":[
 		{
-			"name":"Mesh_0",
+			"name":"Mesh_0.001",
 			"primitives":[
 				{
 					"attributes":{
@@ -213,7 +213,7 @@
 	"buffers":[
 		{
 			"byteLength":4336480,
-			"uri":"my-model.bin"
+			"uri":"untitled.bin"
 		}
 	]
 }
